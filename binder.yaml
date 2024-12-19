@@ -1,0 +1,164 @@
+imageCleaner:
+    enabled: true
+    # when 80% of inodes are used,
+    # cull images until only 40% are used.
+    imageGCThresholdHigh: 80
+    imageGCThresholdLow: 40
+
+initContainers:
+  - name: git-clone-templates
+    image: alpine/git
+    args:
+      - clone
+      - --single-branch
+      - --branch=dev
+      - --depth=1
+      - --
+      - https://github.com/yxzhan/binderhub-custom-files.git
+      - /etc/binderhub/custom
+    securityContext:
+      runAsUser: 0
+    volumeMounts:
+      - name: custom-templates
+        mountPath: /etc/binderhub/custom
+
+extraVolumes:
+  - name: custom-templates
+    emptyDir: {}
+
+extraVolumeMounts:
+  - name: custom-templates
+    mountPath: /etc/binderhub/custom
+
+
+extraConfig:
+  custom_config: |
+    c.Launcher.retries = 1
+
+config:
+  BinderHub:
+    template_path: /etc/binderhub/custom/templates
+    extra_static_path: /etc/binderhub/custom/static
+    extra_static_url_prefix: /extra_static/
+    template_variables:
+        EXTRA_STATIC_URL_PREFIX: "/extra_static/"
+    use_registry: true
+    image_prefix: intel4coro/
+    hub_url: https://jupyter.intel4coro.de
+    build_node_selector:
+      kubernetes.io/hostname: binderhub
+  KubernetesBuildExecutor:
+    build_image: quay.io/jupyterhub/repo2docker:2024.07.0-19.gbf618ef
+    memory_request: 1G
+    memory_limit: 12G
+  GitHubRepoProvider:
+    # Whitelist of github users and organizations, only repos under the following users are allow to build images
+    whitelist_enabled: false
+    whitelist:
+      - "IntEL4CoRo"
+      - "yxzhan"
+      - "Srikanth635"
+      - "Neenvan123"
+      - "artnie"
+      - "Multiverse-Framework"
+      - "K3cks"
+      - "sunava"
+      - "AbhijitVyas"
+      - "code-iai"
+      - "SemRoCo"
+      - "Food-Ninja"
+      - "MrSkooma"
+      - "joint-probability-trees"
+      - "RobotActions"
+      - "cram2"
+      - "HoangGiang93"
+      - "QuantStack"
+      - "jupyterlab"
+      - "hawkina"
+      - "michaelakuempel"
+      - "sasjonge"
+    # Regular expression for banning repo address not started with the keywords above
+    banned_specs:
+      - ^(?!()\/).*$
+
+
+jupyterhub:
+  cull:
+    # cull every 15 minutes so it is out of phase
+    every: 900
+    # with the proxy check-routes interval of 30 minutes
+    timeout: 1800
+    # maxAge is 24 hours: 24 * 3600 = 86400
+    maxAge: 86400
+  hub:
+    networkPolicy:
+      enabled: true
+  singleuser:
+    nodeSelector:
+      node.kubernetes.io/microk8s-worker: microk8s-worker
+    cloudMetadata:
+      blockWithIptables: false
+    networkPolicy:
+      domain_whitelist:
+        - api.krr.triply.cc
+        - api.conceptnet.io
+        - www.lidl.co.uk
+        - git.h2t.iar.kit.edu
+        - wit.istc.cnr.it
+        - www.ontologydesignpatterns.org
+        - www.w3.org
+        - www.wikidata.org
+        - dbpedia.org
+      enabled: true
+      egress:
+        - to:
+            # ip of IAI services
+            # https://gitlab.informatik.uni-bremen.de/
+            # https://data.open-ease.org
+          - ipBlock:
+              cidr: 134.102.0.0/16
+          - ipBlock:
+            # ip of https://registry.npmjs.org/
+              cidr: 104.16.0.0/16
+      egressAllowRules:
+        privateIPs: false
+        nonPrivateIPs: false
+    # lifecycleHooks:
+    #   postStart:
+    #     exec:
+    #       command:
+    #         - python3
+    #         - "-c"
+    #         - |
+    #           # inject chatbot config
+    #           import os
+    #           try:
+    #               jupyter_ai_config_path = '/home/jovyan/.local/share/jupyter/jupyter_ai'
+    #               if not os.path.exists(jupyter_ai_config_path):
+    #                   os.makedirs(jupyter_ai_config_path)
+    #               config_json = """
+    #                   {
+    #                       "model_provider_id": "ollama:llama3.2:3b",
+    #                       "embeddings_provider_id": "ollama:all-minilm",
+    #                       "send_with_shift_enter": false,
+    #                       "fields": {},
+    #                       "api_keys": {},
+    #                       "completions_model_provider_id": null,
+    #                       "completions_fields": {}
+    #                   }
+    #               """
+    #               with open(jupyter_ai_config_path + '/config.json', 'w') as file:
+    #                   file.write(config_json)
+    #           except Exception as e:
+    #               print(e)
+    extraEnv:
+      LP_NUM_THREADS: "2"
+      # OLLAMA_MODEL: "gemma2:27b"
+      # OLLAMA_MODEL: "llama3.2:3b"
+      # OLLAMA_HOST: "http://192.168.240.1:11434"
+    memory:
+      guarantee: 2G
+      limit: 8G
+    cpu:
+      guarantee: 2
+      limit: 8

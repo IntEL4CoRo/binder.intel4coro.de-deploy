@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: binderhub
+spec:
+  hard:
+    # limits.cpu: "110"
+    requests.memory: 696Gi
+    # pods: "35"
+    # scopeSelector:
+    #   matchExpressions:
+    #   - operator : Exists
+    #     scopeName: BestEffort
