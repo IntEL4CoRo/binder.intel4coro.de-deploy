@@ -8,14 +8,12 @@ imageCleaner:
 initContainers:
   - name: git-clone-templates
     image: alpine/git
-    args:
-      - clone
-      - --single-branch
-      - --branch=dev
-      - --depth=1
-      - --
-      - https://github.com/yxzhan/binderhub-custom-files.git
-      - /etc/binderhub/custom
+    command:
+      - /bin/sh
+      - -c
+      - |
+        rm -rf /etc/binderhub/custom/iai && \
+        git clone -b dev https://github.com/yxzhan/binderhub-custom-files.git /etc/binderhub/custom/iai
     securityContext:
       runAsUser: 0
     volumeMounts:
@@ -37,8 +35,8 @@ extraConfig:
 
 config:
   BinderHub:
-    template_path: /etc/binderhub/custom/templates
-    extra_static_path: /etc/binderhub/custom/static
+    template_path: /etc/binderhub/custom/iai/templates
+    extra_static_path: /etc/binderhub/custom/iai/static
     extra_static_url_prefix: /extra_static/
     template_variables:
         EXTRA_STATIC_URL_PREFIX: "/extra_static/"
