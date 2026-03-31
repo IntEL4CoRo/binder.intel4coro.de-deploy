@@ -5,6 +5,7 @@ imageCleaner:
     imageGCThresholdHigh: 80
     imageGCThresholdLow: 40
 
+# Customization of BinderHub Webpage interface (Optional)
 initContainers:
   - name: git-clone-templates
     image: alpine/git
@@ -42,121 +43,154 @@ config:
         EXTRA_STATIC_URL_PREFIX: "/extra_static/"
     use_registry: true
     image_prefix: intel4coro/
-    hub_url: https://jupyter.intel4coro.de
+    hub_url: https://jupyter.dev.intel4coro.de
+    KubernetesBuildExecutor:
+      build_image: quay.io/jupyterhub/repo2docker:2024.07.0-19.gbf618ef
+      # cpu_limit: 16
+      memory_request: 1G
+      memory_limit: 10G
+      # repo2docker_extra_args:
+      #  - --build-arg=pull
     build_node_selector:
-      kubernetes.io/hostname: binderhub
-  KubernetesBuildExecutor:
-    build_image: quay.io/jupyterhub/repo2docker:2024.07.0-19.gbf618ef
-    memory_request: 1G
-    memory_limit: 12G
-  GitHubRepoProvider:
-    # Whitelist of github users and organizations, only repos under the following users are allow to build images
-    whitelist_enabled: false
-    whitelist:
-      - "IntEL4CoRo"
-      - "yxzhan"
-      - "Srikanth635"
-      - "Neenvan123"
-      - "artnie"
-      - "Multiverse-Framework"
-      - "K3cks"
-      - "sunava"
-      - "AbhijitVyas"
-      - "code-iai"
-      - "SemRoCo"
-      - "Food-Ninja"
-      - "MrSkooma"
-      - "joint-probability-trees"
-      - "RobotActions"
-      - "cram2"
-      - "HoangGiang93"
-      - "QuantStack"
-      - "jupyterlab"
-      - "hawkina"
-      - "michaelakuempel"
-      - "sasjonge"
-    # Regular expression for banning repo address not started with the keywords above
-    banned_specs:
-      - ^(?!()\/).*$
+      kubernetes.io/hostname: ai-00039
 
 
 jupyterhub:
   cull:
-    # cull every 15 minutes so it is out of phase
-    every: 900
-    # with the proxy check-routes interval of 30 minutes
-    timeout: 1800
+    # cull every 5 minutes so it is out of phase
+    every: 300
+    # with the proxy check-routes interval of 5 minutes
+    timeout: 300
     # maxAge is 24 hours: 24 * 3600 = 86400
-    maxAge: 86400
+    maxAge: 14400
+    # maxAge: 3600
   hub:
     networkPolicy:
       enabled: true
+    extraConfig:
+      # Set user pod run as root
+      custom-securityContex: |
+        c.BinderSpawner.uid = 0
+        c.BinderSpawner.gid = 0
+        # c.BinderSpawner.allow_privilege_escalation = True
+        # c.BinderSpawner.privileged = True
+        # c.BinderSpawner.args = [
+        #   "--allow-root",
+        # ]
+      # Overwrite the default timeout settings to be more tolerant of slow startups
+      01-timeout: |
+        c.Spawner.start_timeout = 60
+        c.Spawner.http_timeout = 60
+        c.Spawner.consecutive_failure_limit = 10
+        print(c.JupyterHub.concurrent_spawn_limit)
   singleuser:
-    nodeSelector:
-      node.kubernetes.io/microk8s-worker: microk8s-worker
+    # Customize the startup command to install VirtualGL
+    cmd:
+      - python3
+      - "-c"
+      - |
+        import os
+        import sys
+        import shutil
+        import subprocess
+        try:
+            import jupyterlab
+            import jupyterlab.labapp
+            major = int(jupyterlab.__version__.split(".", 1)[0])
+        except Exception as e:
+            print(f"Failed to import jupyterlab: {e}", file=sys.stderr)
+            have_lab = False
+        else:
+            have_lab = major >= 3
+
+        if have_lab:
+            # technically, we could accept another jupyter-server-based frontend
+            print("Launching jupyter-lab", file=sys.stderr)
+            exe = "jupyter-lab"
+        else:
+            print("jupyter-lab not found, launching jupyter-notebook", file=sys.stderr)
+            exe = "jupyter-notebook"
+
+        # inject arguments
+        custom_args = sys.argv[:]
+        custom_args.append("--allow-root")
+
+        subprocess.run(['jupyter', 'labextension', 'disable', '@jupyterlab/apputils-extension:notification'], check=False)
+        # Install VirtualGL if not installed and user is root
+        if os.geteuid() == 0 and shutil.which("vglrun") is None:
+            print("User is root. Installing VirtualGL...")
+            try:
+                subprocess.run(["sudo", "apt-get", "install", "-y", "-q", "/mnt/dev-tools/installers/virtualgl_3.1.2_amd64.deb"], check=True)
+
+                print("VirtualGL installed successfully.")
+            except subprocess.CalledProcessError as e:
+                print(f"Command failed: {e}", file=sys.stderr)
+        cmd = [exe] + custom_args[1:]
+        # launch the notebook server
+        os.execvp(cmd[0], cmd)
     cloudMetadata:
       blockWithIptables: false
     networkPolicy:
-      domain_whitelist:
-        - api.krr.triply.cc
-        - api.conceptnet.io
-        - www.lidl.co.uk
-        - git.h2t.iar.kit.edu
-        - wit.istc.cnr.it
-        - www.ontologydesignpatterns.org
-        - www.w3.org
-        - www.wikidata.org
-        - dbpedia.org
       enabled: true
-      egress:
-        - to:
-            # ip of IAI services
-            # https://gitlab.informatik.uni-bremen.de/
-            # https://data.open-ease.org
-          - ipBlock:
-              cidr: 134.102.0.0/16
-          - ipBlock:
-            # ip of https://registry.npmjs.org/
-              cidr: 104.16.0.0/16
       egressAllowRules:
         privateIPs: false
-        nonPrivateIPs: false
-    # lifecycleHooks:
-    #   postStart:
-    #     exec:
-    #       command:
-    #         - python3
-    #         - "-c"
-    #         - |
-    #           # inject chatbot config
-    #           import os
-    #           try:
-    #               jupyter_ai_config_path = '/home/jovyan/.local/share/jupyter/jupyter_ai'
-    #               if not os.path.exists(jupyter_ai_config_path):
-    #                   os.makedirs(jupyter_ai_config_path)
-    #               config_json = """
-    #                   {
-    #                       "model_provider_id": "ollama:llama3.2:3b",
-    #                       "embeddings_provider_id": "ollama:all-minilm",
-    #                       "send_with_shift_enter": false,
-    #                       "fields": {},
-    #                       "api_keys": {},
-    #                       "completions_model_provider_id": null,
-    #                       "completions_fields": {}
-    #                   }
-    #               """
-    #               with open(jupyter_ai_config_path + '/config.json', 'w') as file:
-    #                   file.write(config_json)
-    #           except Exception as e:
-    #               print(e)
+        nonPrivateIPs: true
     extraEnv:
-      LP_NUM_THREADS: "2"
-      # OLLAMA_MODEL: "gemma2:27b"
-      # OLLAMA_MODEL: "llama3.2:3b"
-      # OLLAMA_HOST: "http://192.168.240.1:11434"
+      LP_NUM_THREADS: "4"
+      NVIDIA_DRIVER_CAPABILITIES: "all"
+      VGL_DISPLAY: "egl"
+      VGL_ISACTIVE: "1"
+      LD_PRELOAD: "libdlfaker.so:libvglfaker.so"
+      ACCEPT_EULA: "YES"
+      PRIVACY_CONSENT: "YES"
+      OMNI_KIT_ACCEPT_EULA: "YES"
+      OMNI_KIT_ALLOW_ROOT: "1"
+      DEV_TOOLS_PATH: "/mnt/dev-tools"
+      # ANTHROPIC_AUTH_TOKEN: "ollama"
+      # ANTHROPIC_API_KEY: ""
+      # ANTHROPIC_BASE_URL: "http://192.168.102.13:12345"
+      # ANTHROPIC_MODEL: "qwen3.5:9b"
     memory:
-      guarantee: 2G
-      limit: 8G
+      guarantee: 1G
+      limit: 20G
     cpu:
-      guarantee: 2
-      limit: 8
+      guarantee: 1
+      limit: 12
+    extraResource:
+      guarantees:
+        nvidia.com/gpu: "1"
+      limits:
+        nvidia.com/gpu: "1"
+    storage:
+      extraVolumeMounts:
+        - name: vulkan-icd
+          mountPath: /etc/vulkan/icd.d
+        - name: huggingface-cache
+          mountPath: /home/jovyan/.cache/huggingface
+        - name: pip-cache
+          mountPath: /home/jovyan/.cache/pip
+        - name: isaacsim-cache
+          mountPath: /mnt/isaacsim-cache
+        - name: dev-tools
+          mountPath: /mnt/dev-tools
+      extraVolumes:
+        - name: vulkan-icd
+          hostPath:
+            path: /usr/share/vulkan/icd.d
+            type: Directory
+        - name: huggingface-cache
+          hostPath:
+            path: /srv/binder.intel4coro.de/cache/huggingface
+            type: Directory
+        - name: pip-cache
+          hostPath:
+            path: /srv/binder.intel4coro.de/cache/pip
+            type: Directory
+        - name: isaacsim-cache
+          hostPath:
+            path: /srv/binder.intel4coro.de/cache/isaacsim
+            type: Directory
+        - name: dev-tools
+          hostPath:
+            path:  /srv/binder.intel4coro.de/dev-tools
+            type: Directory

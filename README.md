@@ -6,8 +6,6 @@ This repo is for maintaining the K8S configuration of the site [binder.intel4cor
 |-|-|
 |[binder.yaml](./binder.yaml)|Main config file|
 |[commands.md](./commands.md)|Some commonly used K8S commands.|
-|[binder_yaml.py](./binder_yaml.py)|A Python script to insert network policy configs on top of [binder.yaml](./binder.yaml).|
-|[requirements.txt](./requirements.txt)|Dependencies of script [binder_yaml.py](./binder_yaml.py).|
 |[resource-quota.yaml](./resource-quota.yaml)|Configuration of resource limitations.|
 
 For the complete deployment guide, see [platform deployment](https://vib.ai.uni-bremen.de/page/softwaretools/cloud-based-robotics-platform/#platform-deployment).
