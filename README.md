@@ -16,4 +16,4 @@ BinderHub enables users to launch reproducible computing environments directly f
 
 ## Documentation
 
-For the full deployment guide, see **[docs/main.md](./docs/main.md)**.
+For the full deployment guide, see **[https://intel4coro.github.io/binder.intel4coro.de-deploy/](https://intel4coro.github.io/binder.intel4coro.de-deploy/)**.
