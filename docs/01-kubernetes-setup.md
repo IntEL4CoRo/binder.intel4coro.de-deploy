@@ -15,7 +15,7 @@
 | **ConfigMap** | Stores non-sensitive configuration data as key-value pairs, mountable into pods |
 | **Helm** | A package manager for Kubernetes. BinderHub is installed as a Helm *chart* (a bundle of K8s manifests with configurable values) |
 
-> **Recommendation**: **Option A (Google Cloud (GKE)) is strongly recommended**. Self-hosting a cluster (Option B) involves significant manual work — configuring networking, VPN tunnels, firewall rules, GPU drivers, and ongoing node maintenance. Managed services like GKE handle most of this for you.
+> **Recommendation**: **Option A (Google Cloud (GKE)) is strongly recommended**. Self-hosting a cluster (Option B) involves significant manual work — configuring networking, firewall rules, GPU drivers, and ongoing node maintenance. Managed services like GKE handle most of this for you.
 >
 > For deploying on AWS, Azure, or other managed Kubernetes services, see the Zero to JupyterHub guide: https://z2jh.jupyter.org/en/latest/kubernetes/setup-kubernetes.html
 

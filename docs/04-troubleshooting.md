@@ -160,4 +160,3 @@ microk8s.helm upgrade binder --cleanup-on-fail \
   -f ./secret.yaml \
   -f ./binder.yaml
 ```
-

@@ -72,9 +72,9 @@ jupyterhub:
         c.BinderSpawner.gid = 0
         # c.BinderSpawner.allow_privilege_escalation = True
         # c.BinderSpawner.privileged = True
-        c.BinderSpawner.args = [
-          "--allow-root",
-        ]
+        # c.BinderSpawner.args = [
+        #   "--allow-root",
+        # ]
       # Overwrite the default timeout settings to be more tolerant of slow startups
       01-timeout: |
         c.Spawner.start_timeout = 120
@@ -82,6 +82,50 @@ jupyterhub:
         c.Spawner.consecutive_failure_limit = 10
   singleuser:
     # Customize the startup command to install VirtualGL
+    # cmd:
+    #   - python3
+    #   - "-c"
+    #   - |
+    #     import os
+    #     import sys
+    #     import shutil
+    #     import subprocess
+    #     try:
+    #         import jupyterlab
+    #         import jupyterlab.labapp
+    #         major = int(jupyterlab.__version__.split(".", 1)[0])
+    #     except Exception as e:
+    #         print(f"Failed to import jupyterlab: {e}", file=sys.stderr)
+    #         have_lab = False
+    #     else:
+    #         have_lab = major >= 3
+
+    #     if have_lab:
+    #         # technically, we could accept another jupyter-server-based frontend
+    #         print("Launching jupyter-lab", file=sys.stderr)
+    #         exe = "jupyter-lab"
+    #     else:
+    #         print("jupyter-lab not found, launching jupyter-notebook", file=sys.stderr)
+    #         exe = "jupyter-notebook"
+
+    #     # inject arguments
+    #     custom_args = sys.argv[:]
+    #     custom_args.append("--allow-root")
+
+    #     subprocess.run(['jupyter', 'labextension', 'disable', '@jupyterlab/apputils-extension:notification'], check=False)
+    #     # Install VirtualGL if not installed and user is root
+    #     if os.geteuid() == 0 and shutil.which("vglrun") is None:
+    #         print("User is root. Installing VirtualGL...")
+    #         try:
+    #             subprocess.run(["sudo", "apt-get", "install", "-y", "-q", "/mnt/dev-tools/installers/virtualgl_3.1.2_amd64.deb"], check=True)
+
+    #             print("VirtualGL installed successfully.")
+    #         except subprocess.CalledProcessError as e:
+    #             print(f"Command failed: {e}", file=sys.stderr)
+    #     cmd = [exe] + custom_args[1:]
+    #     # launch the notebook server
+    #     os.execvp(cmd[0], cmd)
+
     cloudMetadata:
       blockWithIptables: false
     networkPolicy:
@@ -120,6 +164,8 @@ jupyterhub:
     #       mountPath: /home/jovyan/.cache/pip
     #     - name: isaacsim-cache
     #       mountPath: /mnt/isaacsim-cache
+    #     - name: dev-tools
+    #       mountPath: /mnt/dev-tools
     #   extraVolumes:
     #     - name: vulkan-icd
     #       hostPath:
@@ -136,4 +182,8 @@ jupyterhub:
     #     - name: isaacsim-cache
     #       hostPath:
     #         path: /srv/binder.intel4coro.de/cache/isaacsim
+    #         type: Directory
+    #     - name: dev-tools
+    #       hostPath:
+    #         path:  /srv/binder.intel4coro.de/dev-tools
     #         type: Directory
