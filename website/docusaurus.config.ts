@@ -12,7 +12,7 @@ const config: Config = {
   },
 
   url: 'https://your-domain.org',
-  baseUrl: '/',
+  baseUrl: '/binder.intel4coro.de-deploy/',
 
   organizationName: 'IntEL4CoRo',
   projectName: 'binder.intel4coro.de-deploy',
