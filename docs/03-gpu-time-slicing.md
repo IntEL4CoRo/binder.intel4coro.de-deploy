@@ -1,3 +1,7 @@
+---
+sidebar_position: 3
+---
+
 # Chapter 3: GPU Time-Slicing
 
 Reference: [NVIDIA GPU Operator — GPU Sharing](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)

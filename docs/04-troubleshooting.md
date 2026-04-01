@@ -1,3 +1,7 @@
+---
+sidebar_position: 4
+---
+
 # Chapter 4: Troubleshooting
 
 Common commands for monitoring and troubleshooting the BinderHub deployment.

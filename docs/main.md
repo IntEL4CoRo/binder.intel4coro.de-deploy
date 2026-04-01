@@ -1,3 +1,8 @@
+---
+sidebar_position: 0
+slug: /
+---
+
 # VRB Binderhub Server Deployment Guide with GPU Resources
 
 Complete guide for deploying the [Virtual Research Building (VRB)](https://vrb.ease-crc.org/) server — a cloud-based robotics platform built on the [BinderHub](https://github.com/jupyterhub/binderhub) project, with NVIDIA GPU support on MicroK8s. BinderHub enables users to launch reproducible computing environments from Git repositories; this deployment extends it with GPU time-slicing and VirtualGL for GPU-accelerated rendering in user pods.

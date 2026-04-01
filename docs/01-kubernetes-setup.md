@@ -1,3 +1,7 @@
+---
+sidebar_position: 1
+---
+
 # Chapter 1: Kubernetes Cluster Setup
 
 [Kubernetes](https://kubernetes.io/) (K8s) is a container orchestration platform that automates the deployment, scaling, and management of containerized applications. BinderHub runs on top of Kubernetes — it uses K8s to dynamically launch isolated user pods, each running a reproducible computing environment. **A working Kubernetes cluster is the foundation for everything that follows in this guide.**

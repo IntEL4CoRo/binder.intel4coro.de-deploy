@@ -1,3 +1,7 @@
+---
+sidebar_position: 5
+---
+
 # Chapter 5: Shutdown and Uninstall
 
 ## 5.1 Delete BinderHub Only

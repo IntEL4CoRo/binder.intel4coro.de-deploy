@@ -1,3 +1,7 @@
+---
+sidebar_position: 2
+---
+
 # Chapter 2: Deploy BinderHub
 
 All commands in this chapter are run on the machine that has `kubectl` and `helm` access to the cluster:
