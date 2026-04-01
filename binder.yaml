@@ -49,10 +49,8 @@ config:
       # cpu_limit: 16
       memory_request: 1G
       memory_limit: 10G
-      # repo2docker_extra_args:
-      #  - --build-arg=pull
-    build_node_selector:
-      kubernetes.io/hostname: ai-00039
+    # build_node_selector:
+    #   kubernetes.io/hostname: gpu-worker
 
 
 jupyterhub:
@@ -68,66 +66,22 @@ jupyterhub:
     networkPolicy:
       enabled: true
     extraConfig:
-      # Set user pod run as root
+      # Set user pod run as root user
       custom-securityContex: |
         c.BinderSpawner.uid = 0
         c.BinderSpawner.gid = 0
         # c.BinderSpawner.allow_privilege_escalation = True
         # c.BinderSpawner.privileged = True
-        # c.BinderSpawner.args = [
-        #   "--allow-root",
-        # ]
+        c.BinderSpawner.args = [
+          "--allow-root",
+        ]
       # Overwrite the default timeout settings to be more tolerant of slow startups
       01-timeout: |
-        c.Spawner.start_timeout = 60
-        c.Spawner.http_timeout = 60
+        c.Spawner.start_timeout = 120
+        c.Spawner.http_timeout = 120
         c.Spawner.consecutive_failure_limit = 10
-        print(c.JupyterHub.concurrent_spawn_limit)
   singleuser:
     # Customize the startup command to install VirtualGL
-    cmd:
-      - python3
-      - "-c"
-      - |
-        import os
-        import sys
-        import shutil
-        import subprocess
-        try:
-            import jupyterlab
-            import jupyterlab.labapp
-            major = int(jupyterlab.__version__.split(".", 1)[0])
-        except Exception as e:
-            print(f"Failed to import jupyterlab: {e}", file=sys.stderr)
-            have_lab = False
-        else:
-            have_lab = major >= 3
-
-        if have_lab:
-            # technically, we could accept another jupyter-server-based frontend
-            print("Launching jupyter-lab", file=sys.stderr)
-            exe = "jupyter-lab"
-        else:
-            print("jupyter-lab not found, launching jupyter-notebook", file=sys.stderr)
-            exe = "jupyter-notebook"
-
-        # inject arguments
-        custom_args = sys.argv[:]
-        custom_args.append("--allow-root")
-
-        subprocess.run(['jupyter', 'labextension', 'disable', '@jupyterlab/apputils-extension:notification'], check=False)
-        # Install VirtualGL if not installed and user is root
-        if os.geteuid() == 0 and shutil.which("vglrun") is None:
-            print("User is root. Installing VirtualGL...")
-            try:
-                subprocess.run(["sudo", "apt-get", "install", "-y", "-q", "/mnt/dev-tools/installers/virtualgl_3.1.2_amd64.deb"], check=True)
-
-                print("VirtualGL installed successfully.")
-            except subprocess.CalledProcessError as e:
-                print(f"Command failed: {e}", file=sys.stderr)
-        cmd = [exe] + custom_args[1:]
-        # launch the notebook server
-        os.execvp(cmd[0], cmd)
     cloudMetadata:
       blockWithIptables: false
     networkPolicy:
@@ -138,18 +92,13 @@ jupyterhub:
     extraEnv:
       LP_NUM_THREADS: "4"
       NVIDIA_DRIVER_CAPABILITIES: "all"
-      VGL_DISPLAY: "egl"
-      VGL_ISACTIVE: "1"
-      LD_PRELOAD: "libdlfaker.so:libvglfaker.so"
+      # VGL_DISPLAY: "egl"
+      # VGL_ISACTIVE: "1"
+      # LD_PRELOAD: "libdlfaker.so:libvglfaker.so"
       ACCEPT_EULA: "YES"
       PRIVACY_CONSENT: "YES"
       OMNI_KIT_ACCEPT_EULA: "YES"
       OMNI_KIT_ALLOW_ROOT: "1"
-      DEV_TOOLS_PATH: "/mnt/dev-tools"
-      # ANTHROPIC_AUTH_TOKEN: "ollama"
-      # ANTHROPIC_API_KEY: ""
-      # ANTHROPIC_BASE_URL: "http://192.168.102.13:12345"
-      # ANTHROPIC_MODEL: "qwen3.5:9b"
     memory:
       guarantee: 1G
       limit: 20G
@@ -161,36 +110,30 @@ jupyterhub:
         nvidia.com/gpu: "1"
       limits:
         nvidia.com/gpu: "1"
-    storage:
-      extraVolumeMounts:
-        - name: vulkan-icd
-          mountPath: /etc/vulkan/icd.d
-        - name: huggingface-cache
-          mountPath: /home/jovyan/.cache/huggingface
-        - name: pip-cache
-          mountPath: /home/jovyan/.cache/pip
-        - name: isaacsim-cache
-          mountPath: /mnt/isaacsim-cache
-        - name: dev-tools
-          mountPath: /mnt/dev-tools
-      extraVolumes:
-        - name: vulkan-icd
-          hostPath:
-            path: /usr/share/vulkan/icd.d
-            type: Directory
-        - name: huggingface-cache
-          hostPath:
-            path: /srv/binder.intel4coro.de/cache/huggingface
-            type: Directory
-        - name: pip-cache
-          hostPath:
-            path: /srv/binder.intel4coro.de/cache/pip
-            type: Directory
-        - name: isaacsim-cache
-          hostPath:
-            path: /srv/binder.intel4coro.de/cache/isaacsim
-            type: Directory
-        - name: dev-tools
-          hostPath:
-            path:  /srv/binder.intel4coro.de/dev-tools
-            type: Directory
+    # storage:
+    #   extraVolumeMounts:
+    #     - name: vulkan-icd
+    #       mountPath: /etc/vulkan/icd.d
+    #     - name: huggingface-cache
+    #       mountPath: /home/jovyan/.cache/huggingface
+    #     - name: pip-cache
+    #       mountPath: /home/jovyan/.cache/pip
+    #     - name: isaacsim-cache
+    #       mountPath: /mnt/isaacsim-cache
+    #   extraVolumes:
+    #     - name: vulkan-icd
+    #       hostPath:
+    #         path: /usr/share/vulkan/icd.d
+    #         type: Directory
+    #     - name: huggingface-cache
+    #       hostPath:
+    #         path: /srv/binder.intel4coro.de/cache/huggingface
+    #         type: Directory
+    #     - name: pip-cache
+    #       hostPath:
+    #         path: /srv/binder.intel4coro.de/cache/pip
+    #         type: Directory
+    #     - name: isaacsim-cache
+    #       hostPath:
+    #         path: /srv/binder.intel4coro.de/cache/isaacsim
+    #         type: Directory
