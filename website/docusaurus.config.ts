@@ -5,7 +5,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'VRB BinderHub Deployment Guide',
   tagline: 'Deploy BinderHub with NVIDIA GPU support on MicroK8s or Google Cloud',
-  favicon: 'img/favicon.ico',
+  favicon: 'https://ai.uni-bremen.de/lib/tpl/aicortpl/images/favicon.ico',
 
   future: {
     v4: true,
@@ -52,6 +52,10 @@ const config: Config = {
     },
     navbar: {
       title: 'VRB BinderHub Guide',
+      logo: {
+        alt: 'AICor Logo',
+        src: 'https://ai.uni-bremen.de/lib/tpl/aicortpl/images/aicor_logo.jpg',
+      },
       items: [
         {
           type: 'docSidebar',
