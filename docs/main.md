@@ -16,3 +16,9 @@ Complete guide for deploying the [Virtual Research Building (VRB)](https://vrb.e
 | [3. GPU Time-Slicing](./03-gpu-time-slicing.md) | Configure NVIDIA GPU time-slicing for multi-pod GPU sharing |
 | [4. Troubleshooting](./04-troubleshooting.md) | troubleshooting, Day-to-day operations |
 | [5. Shutdown and Uninstall](./05-shutdown-uninstall.md) | Tear down services and clean up resources |
+
+
+## References:
+
+https://binderhub.readthedocs.io/en/latest/zero-to-binderhub/
+https://z2jh.jupyter.org/en/stable/index.html

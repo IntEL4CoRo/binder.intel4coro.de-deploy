@@ -10,7 +10,23 @@ Reference: [NVIDIA GPU Operator — GPU Sharing](https://docs.nvidia.com/datacen
 
 By default, Kubernetes treats each physical GPU as an indivisible resource — only one pod can use it at a time. In a shared BinderHub environment where most sessions only need a fraction of a GPU, this severely limits concurrency.
 
-NVIDIA GPU time-slicing exposes one physical GPU as multiple virtual replicas, allowing several pods to share it simultaneously. The trade-offs — no memory isolation, no performance guarantees — are acceptable for the interactive robotics sessions in VRB lab.
+NVIDIA offers two GPU sharing strategies:
+
+| Strategy | How it works | Isolation | Hardware requirement |
+|----------|-------------|-----------|---------------------|
+| **Time-Slicing** | Pods take turns using the full GPU on a rotating schedule | No memory isolation — pods share the entire GPU memory | Any NVIDIA GPU |
+| **MIG (Multi-Instance GPU)** | Physically partitions GPU into independent instances, each with dedicated compute units and memory | Full hardware-level isolation | Only NVIDIA A100, A30, H100, and newer data center GPUs |
+
+**Why time-slicing over MIG?** MIG provides stronger isolation but is only available on high-end data center GPUs (A100+). Consumer and workstation GPUs (e.g., RTX 2070–4090, Tesla T4) do not support MIG. Since VRB lab uses these GPU types, time-slicing is the only option.
+
+**Trade-offs of time-slicing:**
+
+- **No memory isolation** — all pods share the full GPU memory. One pod allocating too much VRAM can cause other pods to fail with OOM errors.
+- **No performance guarantee** — pods are scheduled round-robin by the GPU. A compute-heavy pod can starve others, causing latency spikes.
+- **No fault isolation** — a pod that crashes the GPU driver can take down all pods sharing that GPU.
+- **Misleading visibility** — each pod sees the full GPU memory via `nvidia-smi`, with no way to know how much is actually available.
+
+These trade-offs are acceptable for VRB lab because user sessions are interactive (not sustained heavy compute), usage is bursty (most sessions are idle at any given time), and sessions are time-limited (culled after 4 hours).
 
 ### Check Current GPU Resources
 
@@ -30,6 +46,8 @@ gpu-worker2        1              1
 ```
 
 In this example output, the cluster has 3 physical GPUs in total — meaning at most 3 users can run GPU sessions simultaneously before time-slicing is applied.
+
+> **GKE with autoscaling**: If your GPU node pool has `--min-nodes 0`, idle nodes are automatically reclaimed by GKE. When no user pods are running, the GPU nodes will not exist and this command will show no GPU resources. The nodes (and their GPUs) will only appear after a user pod is scheduled and triggers the autoscaler to provision a new node.
 
 ### Apply Time-Slicing Config
 

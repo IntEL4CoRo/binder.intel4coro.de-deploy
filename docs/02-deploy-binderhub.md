@@ -8,7 +8,7 @@ All commands in this chapter are run on the machine that has `kubectl` and `helm
 
 | Setup | Where to run |
 |-------|-------------|
-| **Google Cloud (GKE)** | Your local machine or Cloud Shell, after running `gcloud container clusters get-credentials` to configure `kubectl` |
+| **Google Cloud (GKE)** | Google Cloud Shell |
 | **Self-hosted (MicroK8s)** | The main node (control plane) via SSH or directly |
 
 ### Step 1: Add Helm Repository
@@ -23,7 +23,7 @@ helm repo update
 Clone the deployment configuration:
 
 ```bash
-git clone https://github.com/IntEL4CoRo/binder.intel4coro.de-deploy.git -b gpu
+git clone https://github.com/IntEL4CoRo/binder.intel4coro.de-deploy.git
 cd binder.intel4coro.de-deploy
 ```
 
@@ -119,21 +119,43 @@ proxy-api      ClusterIP      10.152.183.151   <none>            8001/TCP       
 proxy-public   LoadBalancer   10.152.183.81    192.168.1.201     80:32656/TCP   5m
 ```
 
-At this point, BinderHub is accessible via the `EXTERNAL-IP` of the `binder` service.
+The two `LoadBalancer` services — `binder` and `proxy-public` — are the entry points for BinderHub and JupyterHub respectively.
 
-### Step 6: Expose to Public Network
+- **Google Cloud (GKE)**: GKE automatically provisions cloud load balancers with **public IPs**. The `EXTERNAL-IP` values shown above will be publicly routable — you can access BinderHub directly at `http://<binder-external-ip>` right away, without any additional networking setup.
+- **Self-hosted (MicroK8s)**: MetalLB assigns **local network IPs** (e.g., `192.168.1.x`). These are only reachable within the local network — a reverse proxy or tunnel is needed to expose them to the internet (see Step 6).
+
+To make the full system work, update `config.BinderHub.hub_url` in `binder.yaml` to point to the `proxy-public` external IP:
+
+```yaml
+config:
+  BinderHub:
+    hub_url: http://<proxy-public-external-ip>
+```
+
+Then re-run the deploy command to apply the change:
+
+```bash
+helm upgrade binder --cleanup-on-fail \
+  jupyterhub/binderhub --version=1.0.0-0.dev.git.3506.hba24eb2a \
+  --namespace=binder \
+  -f ./secret.yaml \
+  -f ./binder.yaml
+```
+
+After this, the service is fully functional — open `http://<binder-external-ip>` to use BinderHub, which will redirect users to JupyterHub at the `proxy-public` IP for their sessions.
+
+### Step 6: Configure Domain Names and HTTPS
 
 > **Two domain names required**: BinderHub consists of two publicly accessible services — the **BinderHub frontend** (handles repo building and launching) and the **JupyterHub proxy** (hosts the actual user sessions). Each needs its own domain name, e.g.:
 > - `binder.your-domain.org` → BinderHub (`binder` service)
 > - `jupyter.your-domain.org` → JupyterHub (`proxy-public` service)
->
-> The JupyterHub domain must match the `config.BinderHub.hub_url` value set in `binder.yaml` (Step 3).
+
 
 #### Option A: Google Cloud (GKE)
 
 GKE automatically provisions a cloud load balancer when a `LoadBalancer` service is created. The `binder` and `proxy-public` services will receive public IPs directly — no additional setup is needed.
 
-Point your DNS records to the external IPs shown in `kubectl get svc -n binder`, then configure HTTPS using [Google-managed certificates](https://cloud.google.com/kubernetes-engine/docs/how-to/managed-certs) or cert-manager with Let's Encrypt.
+Point your DNS records to the external IPs shown in `kubectl get svc -n binder`, then configure HTTPS using [Google-managed certificates](https://cloud.google.com/kubernetes-engine/docs/how-to/managed-certs) or [cert-manager with Let's Encrypt](https://binderhub.readthedocs.io/en/latest/https.html#adjust-binderhub-config-to-serve-via-https).
 
 Update `config.BinderHub.hub_url` in `binder.yaml` with your JupyterHub domain, then apply the changes:
 

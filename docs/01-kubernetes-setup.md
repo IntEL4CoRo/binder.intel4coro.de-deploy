@@ -25,17 +25,187 @@ sidebar_position: 1
 
 ## Option A: Google Cloud (GKE)
 
-For deploying on Google Kubernetes Engine, follow the official Zero to JupyterHub guide:
+References: https://z2jh.jupyter.org/en/stable/kubernetes/google/step-zero-gcp.html
 
-https://z2jh.jupyter.org/en/stable/kubernetes/google/step-zero-gcp.html
+[Google Kubernetes Engine](https://cloud.google.com/kubernetes-engine/)
+(GKE) is the simplest and most common way of setting
+up a Kubernetes Cluster. You may be able to receive [free credits](https://cloud.google.com/free/) for trying it out (though note that a
+free account [comes with limitations](https://cloud.google.com/free/docs/free-cloud-features#free-tier-usage-limits)).
+Either way, you will need to connect your credit card or other payment method to
+your google cloud account.
 
-Key differences from the self-hosted setup:
-- No need to install MicroK8s
-- GPU nodes are added via GKE node pools with NVIDIA GPU accelerators
-- Load balancing and TLS are handled by GKE Ingress / Google-managed certificates
-- The NVIDIA GPU device plugin is pre-installed on GKE GPU node pools
+### Step 1: Go to [console.cloud.google.com](https://console.cloud.google.com) and log in.
 
-After the GKE cluster is ready, continue from [Chapter 2](./02-deploy-binderhub.md) for BinderHub deployment, and [Chapter 3](./03-gpu-time-slicing.md) for GPU time-slicing configuration.
+
+   > Consider [setting a cloud budget](https://cloud.google.com/billing/docs/how-to/budgets) for your Google Cloud account in order to make sure you don't accidentally spend more than you wish to.
+
+### Step 2: Enable the [Kubernetes Engine API](https://console.cloud.google.com/apis/api/container.googleapis.com/overview).
+
+### Step 3: Open Google Cloud Shell
+
+Start Google Cloud Shell from the console by clicking the terminal icon in the top-right corner (shown below). This gives you a virtual machine with `gcloud`, `kubectl`, and other tools preinstalled. Files saved in your home directory persist across sessions. Cloud Shell also provides a VS Code-based editor for convenient file editing.
+
+![](./img/gc-shell.png)
+
+### Step 4: Choose a Region and Machine Configuration
+
+The most complex part of deploying on GKE is choosing the proper machine types — Google Cloud offers hundreds of options. To balance budget and performance, you need to evaluate your compute requirements, budget constraints, and expected maximum concurrent users. You can describe your use case to Google Cloud's built-in Gemini assistant and ask it to recommend a suitable setup.
+
+Use the [Google Cloud Pricing Calculator](https://cloud.google.com/products/calculator) to estimate costs.
+
+#### 4.1 Select a zone
+
+Browse the available zones: https://cloud.google.com/compute/docs/regions-zones#available
+
+The examples below use `europe-west4-a` (Netherlands).
+
+#### 4.2 List available GPUs in the zone
+
+```bash
+gcloud compute accelerator-types list --filter=”zone:( europe-west4-a )”
+```
+
+Example output:
+
+```
+NAME: nvidia-tesla-t4
+ZONE: europe-west4-a
+DESCRIPTION: NVIDIA T4
+
+NAME: nvidia-tesla-t4-vws
+ZONE: europe-west4-a
+DESCRIPTION: NVIDIA Tesla T4 Virtual Workstation
+```
+
+> **Note**: The `-vws` (Virtual Workstation) variants are more expensive and include licenses for graphics rendering acceleration features. See: https://cloud.google.com/compute/docs/gpus#gpu-virtual-workstations
+
+#### 4.3 List available machine types in the zone
+
+```bash
+gcloud compute machine-types list --filter=”zone:( europe-west4-a ) AND name:n1-standard*”
+```
+
+Example output:
+
+```
+NAME: n1-standard-4
+ZONE: europe-west4-a
+CPUS: 4
+MEMORY_GB: 15.00
+DEPRECATED:
+```
+
+### Step 5: Create the Cluster
+
+First, create a cluster with a single node for running BinderHub core services (API server, image builder, etc.). This node does not need many resources.
+
+- **Zone**: `europe-west4-a`
+- **Machine type**: `n1-standard-2` (2 vCPUs, 7.5 GB memory)
+
+```bash
+gcloud container clusters create \
+  --zone europe-west4-a \
+  --machine-type n1-standard-2 \
+  --disk-size 50 \
+  --num-nodes 1 \
+  --cluster-version latest \
+  vrb-gpu
+```
+
+This may take several minutes to complete.
+
+If cluster creation fails due to insufficient resources in the selected zone, delete the cluster and try again — either in the same zone or a different zone:
+
+```bash
+gcloud container clusters delete vrb-gpu --zone europe-west4-a --quiet
+```
+
+### Step 6: Add a GPU Node Pool
+
+Add a node pool for user pods with GPU support. This pool should be in the same zone as the cluster.
+
+```bash
+gcloud container node-pools create user-pool \
+    --cluster vrb-gpu \
+    --zone europe-west4-a \
+    --machine-type n1-standard-8 \
+    --accelerator type=nvidia-tesla-t4,count=1 \
+    --disk-size 100 \
+    --num-nodes 0 \
+    --enable-autoscaling \
+    --min-nodes 0 \
+    --max-nodes 2 \
+    --node-labels hub.jupyter.org/node-purpose=user \
+    --node-taints hub.jupyter.org_dedicated=user:NoSchedule
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `--cluster` | Target cluster name |
+| `--zone` | Must match the cluster's zone |
+| `--machine-type` | VM type for each node — `n1-standard-8` provides 8 vCPUs and 30 GB memory |
+| `--accelerator` | Attach 1 NVIDIA Tesla T4 GPU per node |
+| `--disk-size` | 100 GB boot disk per node |
+| `--num-nodes` | Initial node count — set to 0 so no nodes run until needed |
+| `--enable-autoscaling` | Enable the cluster autoscaler for this pool |
+| `--min-nodes` | Scale down to 0 when idle, saving cost |
+| `--max-nodes` | Scale up to at most 2 nodes under load |
+| `--node-labels` | JupyterHub uses this label to schedule user pods onto this pool instead of the main node |
+| `--node-taints` | `NoSchedule` taint prevents non-user workloads (e.g., BinderHub core services) from landing on GPU nodes, reserving them exclusively for user sessions |
+
+List node pools:
+
+```bash
+gcloud container node-pools list \
+    --cluster vrb-gpu \
+    --zone europe-west4-a
+```
+
+Delete a node pool (if needed):
+
+```bash
+gcloud container node-pools delete user-pool \
+    --cluster vrb-gpu \
+    --zone europe-west4-a
+```
+
+### Troubleshooting: GPU Quota
+
+New GCP accounts typically have a default GPU quota of **0**. If the GPU node pool fails to create, you need to request a quota increase:
+
+1. Go to **IAM & Admin** → **Quotas** in the GCP console.
+2. Search for `GPUs (all regions)` or a specific model (e.g., `NVIDIA T4 GPUs`).
+3. Select the relevant quota, click **Edit Quotas**, and request an increase (e.g., from 0 to 1).
+4. Provide a brief justification and submit. Approval may take up to two business days.
+
+Once the quota is approved, retry creating the GPU node pool.
+
+### Step 7: Verify the Cluster
+
+Check that all nodes are registered and in `Ready` status:
+
+```bash
+kubectl get nodes
+```
+
+Expected output:
+
+```
+NAME                                      STATUS   ROLES    AGE   VERSION
+gke-vrb-gpu-default-pool-xxxxx-xxxx       Ready    <none>   10m   v1.xx.x
+```
+
+> **Note**: If the GPU node pool has `--min-nodes 0`, its nodes will not appear until a user pod is scheduled. Only the default pool node is expected at this point.
+
+Also verify that all system pods are running:
+
+```bash
+kubectl get pods -A
+```
+
+All pods should show `Running` status.
+
+The GKE cluster is now ready. Continue to [Chapter 2](./02-deploy-binderhub.md) for BinderHub deployment.
 
 ---
 
