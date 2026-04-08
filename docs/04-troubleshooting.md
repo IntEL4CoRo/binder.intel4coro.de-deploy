@@ -76,7 +76,7 @@ kubectl delete resourcequota binderhub -n binder
 **Delete all user pods** (prefix `jupyter-`):
 
 ```bash
-microk8s.kubectl get pods -n binder --no-headers=true | awk '/jupyter-/{print $1}' | xargs microk8s.kubectl delete pod -n binder
+kubectl get pods -n binder --no-headers=true | awk '/jupyter-/{print $1}' | xargs kubectl delete pod -n binder
 ```
 
 **Manage container images** (MicroK8s uses its own containerd, separate from Docker):

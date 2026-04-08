@@ -20,10 +20,25 @@ kubectl delete namespace binder
 
 Reference: [Deleting a cluster — Google Kubernetes Engine](https://cloud.google.com/kubernetes-engine/docs/how-to/deleting-a-cluster)
 
+
+**Delete a node pool:**
+
+```bash
+gcloud container node-pools delete <node-pool-name> \
+    --zone <zone> \
+    --cluster <cluster-name>
+#Example:
+gcloud container node-pools delete user-pool \
+    --cluster vrb-gpu \
+    --zone europe-central2-b
+```
+
 **Delete the GKE cluster:**
 
 ```bash
-gcloud container clusters delete <cluster-name> --region <region>
+gcloud container clusters delete <cluster-name> --zone <zone>
+# example:
+gcloud container clusters delete vrb-gpu --zone europe-central2-b --quiet
 ```
 
 **Check for and remove any remaining billable resources:**
@@ -32,9 +47,12 @@ gcloud container clusters delete <cluster-name> --region <region>
 # Orphaned persistent disks
 gcloud compute disks list
 
+## Delete persistent disks
+gcloud compute disks delete <pvc-name> --zone <zone>
+
 # Orphaned load balancers / forwarding rules
 gcloud compute forwarding-rules list --global
-gcloud compute forwarding-rules list --regions <region>
+gcloud compute forwarding-rules list --zone <zone>
 ```
 
 > **Warning**: GKE cluster deletion is irreversible. Verify all important data is backed up before proceeding.

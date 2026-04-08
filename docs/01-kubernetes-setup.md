@@ -47,49 +47,60 @@ Start Google Cloud Shell from the console by clicking the terminal icon in the t
 
 ![](./img/gc-shell.png)
 
-### Step 4: Choose a Region and Machine Configuration
+### Step 4: Choose a Zone and Machine Configuration
 
-The most complex part of deploying on GKE is choosing the proper machine types — Google Cloud offers hundreds of options. To balance budget and performance, you need to evaluate your compute requirements, budget constraints, and expected maximum concurrent users. You can describe your use case to Google Cloud's built-in Gemini assistant and ask it to recommend a suitable setup.
-
-Use the [Google Cloud Pricing Calculator](https://cloud.google.com/products/calculator) to estimate costs.
+The most complex part of deploying on GKE is choosing the proper machine types — Google Cloud offers hundreds of options. To balance budget and performance, you need to evaluate your compute requirements, budget constraints, and expected maximum concurrent users. You can describe your use case to Google Cloud's built-in Gemini assistant and ask it to recommend a suitable setup. Use the [Google Cloud Pricing Calculator](https://cloud.google.com/products/calculator) to estimate costs.
 
 #### 4.1 Select a zone
-
+  
 Browse the available zones: https://cloud.google.com/compute/docs/regions-zones#available
 
-The examples below use `europe-west4-a` (Netherlands).
+The examples below use zone `europe-central2` (Warsaw)
 
 #### 4.2 List available GPUs in the zone
 
+Not every zone offers every GPU model, so the first step is to confirm which zones actually carry the GPU you want to use. For this deployment the recommended models are:
+
+- **NVIDIA T4** (`nvidia-tesla-t4`) — inexpensive, widely available, good fit for most interactive notebook workloads.
+- **NVIDIA RTX PRO 6000** (`nvidia-rtx-pro-6000`) — high-end workstation GPU with much more VRAM; use it when user sessions need heavier 3D rendering or larger models. Only available in a limited set of zones.
+
+List the accelerators offered in a given zone:
+
 ```bash
-gcloud compute accelerator-types list --filter=”zone:( europe-west4-a )”
+gcloud compute accelerator-types list --filter="zone:( europe-central2-b )"
 ```
 
 Example output:
 
 ```
 NAME: nvidia-tesla-t4
-ZONE: europe-west4-a
+ZONE: europe-central2-b
 DESCRIPTION: NVIDIA T4
-
-NAME: nvidia-tesla-t4-vws
-ZONE: europe-west4-a
-DESCRIPTION: NVIDIA Tesla T4 Virtual Workstation
 ```
 
-> **Note**: The `-vws` (Virtual Workstation) variants are more expensive and include licenses for graphics rendering acceleration features. See: https://cloud.google.com/compute/docs/gpus#gpu-virtual-workstations
+If the model you want is not listed, try another zone, or use the global filter to find all zones that carry it:
+
+```bash
+gcloud compute accelerator-types list --filter="name:nvidia-rtx-pro-6000"
+```
+
+> **Do not pick accelerator types with the `-vws` suffix** (e.g. `nvidia-tesla-t4-vws`). These are NVIDIA RTX Virtual Workstation variants intended for Compute Engine VMs and are **not supported by GKE** — node pool creation will fail with `Invalid accelerator type specified. "nvidia-tesla-t4-vws" is not supported.`.
 
 #### 4.3 List available machine types in the zone
 
+This step is to decide how much CPU and RAM each GPU node will have. Pick a machine family that is **compatible with the GPU model you chose in 4.2** — not every machine type can be attached to every GPU. For example, T4 only works with N1 machines, while RTX PRO 6000 requires specific G-series (e.g. `g4-standard-*`) instances. The compatibility matrix is documented here: https://docs.cloud.google.com/compute/docs/gpus
+
+Once you know which family you need, list the instance sizes available in your zone (replace `n1-standard` with the family that matches your GPU):
+
 ```bash
-gcloud compute machine-types list --filter=”zone:( europe-west4-a ) AND name:n1-standard*”
+gcloud compute machine-types list --filter="zone:( europe-central2-b ) AND name:n1-standard*"
 ```
 
 Example output:
 
 ```
 NAME: n1-standard-4
-ZONE: europe-west4-a
+ZONE: europe-central2-b
 CPUS: 4
 MEMORY_GB: 15.00
 DEPRECATED:
@@ -97,14 +108,14 @@ DEPRECATED:
 
 ### Step 5: Create the Cluster
 
-First, create a cluster with a single node for running BinderHub core services (API server, image builder, etc.). This node does not need many resources.
+First, create a cluster with a single node for running BinderHub core services (API server, image builder, etc.). For a small deployment this node does not need many resources.
 
-- **Zone**: `europe-west4-a`
+- **Zone**: `europe-central2-b`
 - **Machine type**: `n1-standard-2` (2 vCPUs, 7.5 GB memory)
 
 ```bash
 gcloud container clusters create \
-  --zone europe-west4-a \
+  --zone europe-central2-b \
   --machine-type n1-standard-2 \
   --disk-size 50 \
   --num-nodes 1 \
@@ -117,24 +128,25 @@ This may take several minutes to complete.
 If cluster creation fails due to insufficient resources in the selected zone, delete the cluster and try again — either in the same zone or a different zone:
 
 ```bash
-gcloud container clusters delete vrb-gpu --zone europe-west4-a --quiet
+gcloud container clusters delete vrb-gpu --zone europe-central2-b --quiet
 ```
 
 ### Step 6: Add a GPU Node Pool
 
-Add a node pool for user pods with GPU support. This pool should be in the same zone as the cluster.
+This step creates the **dynamic, autoscaling node pool that runs user containers** (Jupyter sessions). Thanks to `--enable-autoscaling` with `--min-nodes 0`, Google Cloud automatically **provisions new GPU nodes when user pods are scheduled and reclaims them when idle**, so you only pay for GPU nodes while users are actually running sessions. This pool should be in the same zone as the cluster.
 
 ```bash
 gcloud container node-pools create user-pool \
     --cluster vrb-gpu \
-    --zone europe-west4-a \
+    --zone europe-central2-b \
     --machine-type n1-standard-8 \
-    --accelerator type=nvidia-tesla-t4,count=1 \
+    --accelerator type=nvidia-tesla-t4,count=1,gpu-driver-version=default,gpu-sharing-strategy=time-sharing,max-shared-clients-per-gpu=4 \
     --disk-size 100 \
     --num-nodes 0 \
     --enable-autoscaling \
     --min-nodes 0 \
-    --max-nodes 2 \
+    --max-nodes 1 \
+    --spot \
     --node-labels hub.jupyter.org/node-purpose=user \
     --node-taints hub.jupyter.org_dedicated=user:NoSchedule
 ```
@@ -144,12 +156,13 @@ gcloud container node-pools create user-pool \
 | `--cluster` | Target cluster name |
 | `--zone` | Must match the cluster's zone |
 | `--machine-type` | VM type for each node — `n1-standard-8` provides 8 vCPUs and 30 GB memory |
-| `--accelerator` | Attach 1 NVIDIA Tesla T4 GPU per node |
+| `--accelerator` | Attach 1 NVIDIA Tesla T4 GPU per node, auto-install the driver, and enable **GPU time-sharing** so each physical GPU is advertised as 4 virtual GPUs (`max-shared-clients-per-gpu`). Increase this value to allow more concurrent user pods per GPU. These flags cannot be added to an existing pool; you must recreate it to change them. |
 | `--disk-size` | 100 GB boot disk per node |
 | `--num-nodes` | Initial node count — set to 0 so no nodes run until needed |
 | `--enable-autoscaling` | Enable the cluster autoscaler for this pool |
 | `--min-nodes` | Scale down to 0 when idle, saving cost |
 | `--max-nodes` | Scale up to at most 2 nodes under load |
+| `--spot` | Use [Spot VMs](https://cloud.google.com/kubernetes-engine/docs/concepts/spot-vms) for this pool — significantly cheaper than on-demand GPU nodes (often 60–90% off), but Google Cloud may preempt (reclaim) the node at any time with ~30 seconds notice. Affected user sessions will be terminated and rescheduled on a new node. Acceptable for interactive notebook workloads; remove this flag if you need guaranteed availability. |
 | `--node-labels` | JupyterHub uses this label to schedule user pods onto this pool instead of the main node |
 | `--node-taints` | `NoSchedule` taint prevents non-user workloads (e.g., BinderHub core services) from landing on GPU nodes, reserving them exclusively for user sessions |
 
@@ -158,15 +171,15 @@ List node pools:
 ```bash
 gcloud container node-pools list \
     --cluster vrb-gpu \
-    --zone europe-west4-a
+    --zone europe-central2-b
 ```
 
-Delete a node pool (if needed):
+Delete a node pool:
 
 ```bash
 gcloud container node-pools delete user-pool \
     --cluster vrb-gpu \
-    --zone europe-west4-a
+    --zone europe-central2-b
 ```
 
 ### Troubleshooting: GPU Quota

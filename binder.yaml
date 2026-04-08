@@ -61,7 +61,6 @@ jupyterhub:
     timeout: 300
     # maxAge is 24 hours: 24 * 3600 = 86400
     maxAge: 14400
-    # maxAge: 3600
   hub:
     networkPolicy:
       enabled: true
@@ -81,7 +80,7 @@ jupyterhub:
         c.Spawner.http_timeout = 120
         c.Spawner.consecutive_failure_limit = 10
   singleuser:
-    # Customize the startup command to install VirtualGL
+    # Customize the startup command to install VirtualGL and setup GKE nvidida envrionment
     # cmd:
     #   - python3
     #   - "-c"
@@ -116,16 +115,17 @@ jupyterhub:
     #     # Install VirtualGL if not installed and user is root
     #     if os.geteuid() == 0 and shutil.which("vglrun") is None:
     #         print("User is root. Installing VirtualGL...")
+    #         vgl_url = "https://github.com/VirtualGL/virtualgl/releases/download/3.1.3/virtualgl_3.1.3_amd64.deb"
+    #         vgl_deb = "/tmp/virtualgl_3.1.3_amd64.deb"
     #         try:
-    #             subprocess.run(["sudo", "apt-get", "install", "-y", "-q", "/mnt/dev-tools/installers/virtualgl_3.1.2_amd64.deb"], check=True)
-
+    #             subprocess.run(["curl", "-fsSL", "-o", vgl_deb, vgl_url], check=True)
+    #             subprocess.run(["sudo", "apt-get", "install", "-y", "-q", vgl_deb], check=True)
     #             print("VirtualGL installed successfully.")
     #         except subprocess.CalledProcessError as e:
     #             print(f"Command failed: {e}", file=sys.stderr)
     #     cmd = [exe] + custom_args[1:]
     #     # launch the notebook server
     #     os.execvp(cmd[0], cmd)
-
     cloudMetadata:
       blockWithIptables: false
     networkPolicy:
@@ -145,10 +145,10 @@ jupyterhub:
       OMNI_KIT_ALLOW_ROOT: "1"
     memory:
       guarantee: 1G
-      limit: 20G
+      # limit: 20G
     cpu:
       guarantee: 1
-      limit: 12
+      # limit: 12
     extraResource:
       guarantees:
         nvidia.com/gpu: "1"

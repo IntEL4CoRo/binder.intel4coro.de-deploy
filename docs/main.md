@@ -20,5 +20,5 @@ Complete guide for deploying the [Virtual Research Building (VRB)](https://vrb.e
 
 ## References:
 
-https://binderhub.readthedocs.io/en/latest/zero-to-binderhub/
-https://z2jh.jupyter.org/en/stable/index.html
+- https://binderhub.readthedocs.io/en/latest/zero-to-binderhub/
+- https://z2jh.jupyter.org/en/stable/index.html

@@ -4,6 +4,12 @@ sidebar_position: 3
 
 # Chapter 3: GPU Time-Slicing
 
+> **This chapter applies only to the self-hosted (MicroK8s) deployment.** It configures GPU sharing via NVIDIA's gpu-operator and sets up Vulkan / OpenGL (VirtualGL) manually, none of which apply on GKE:
+> - **GPU time-sharing on GKE** is configured at node-pool creation via `gcloud` flags — see [Chapter 1, Step 6](./01-kubernetes-setup.md#step-6-add-a-gpu-node-pool) (`gpu-sharing-strategy=time-sharing,max-shared-clients-per-gpu=N`).
+> - **Vulkan / OpenGL (VirtualGL) on GKE** is already wired up in `binder-gke.yaml`, including the GKE-specific NVIDIA driver paths and the EGL vendor ICD. No manual steps are needed.
+>
+> GKE users can skip this chapter entirely.
+
 Reference: [NVIDIA GPU Operator — GPU Sharing](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
 
 ## Why Time-Slicing?
@@ -148,8 +154,6 @@ jupyterhub:
         # ... installs VirtualGL from a pre-downloaded .deb on the host,
         # then launches jupyter-lab
 ```
-
-> **Note**: This startup script installs VirtualGL from a `.deb` package pre-placed at `/mnt/dev-tools/installers/virtualgl_3.1.2_amd64.deb` on the host node (mounted into the pod). Ensure this file exists on the node before enabling this feature.
 
 Then uncomment the VirtualGL environment variables in `binder.yaml` under `jupyterhub.singleuser.extraEnv` (around line 139):
 

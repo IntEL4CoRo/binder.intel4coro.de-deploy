@@ -1,0 +1,189 @@
+imageCleaner:
+    enabled: true
+    # when 80% of inodes are used,
+    # cull images until only 40% are used.
+    imageGCThresholdHigh: 80
+    imageGCThresholdLow: 40
+
+extraConfig:
+  custom_config: |
+    c.Launcher.retries = 1
+
+config:
+  BinderHub:
+    use_registry: true
+    image_prefix: intel4coro/
+    # ===== HTTPS Config ===== #
+    hub_url: https://jupyter.cloud.intel4coro.de
+    # ===== HTTPS END ===== #
+    KubernetesBuildExecutor:
+      build_image: quay.io/jupyterhub/repo2docker:2024.07.0-19.gbf618ef
+
+
+# ===== HTTPS Config ===== #
+# service:
+#   type: ClusterIP
+
+# ingress:
+#   enabled: true
+#   ingressClassName: nginx
+#   hosts:
+#      - binder.cloud.intel4coro.de
+#   annotations:
+#     kubernetes.io/tls-acme: "true"
+#     cert-manager.io/issuer: letsencrypt-production
+#   tls:
+#     - secretName: binder-cloud-intel4coro-de-tls
+#       hosts:
+#         - binder.cloud.intel4coro.de
+# ===== HTTPS END ===== #
+
+
+jupyterhub:
+  # ===== HTTPS Config ===== #
+  # proxy:
+  #   service:
+  #     type: ClusterIP
+  # ingress:
+  #   enabled: true
+  #   ingressClassName: nginx
+  #   hosts:
+  #     - jupyter.cloud.intel4coro.de
+  #   annotations:
+  #     kubernetes.io/tls-acme: "true"
+  #     cert-manager.io/issuer: letsencrypt-production
+  #   tls:
+  #      - secretName: jupyter-cloud-intel4coro-de-tls
+  #        hosts:
+  #         - jupyter.cloud.intel4coro.de
+  # ===== HTTPS END ===== #
+
+  cull:
+    # cull every 5 minutes so it is out of phase
+    every: 300
+    # with the proxy check-routes interval of 5 minutes
+    timeout: 1200
+    # maxAge is 24 hours: 24 * 3600 = 86400
+    maxAge: 86400
+    # maxAge: 3600
+  hub:
+    networkPolicy:
+      enabled: true
+    extraConfig:
+      # Set user pod run as root user
+      custom-securityContex: |
+        c.BinderSpawner.uid = 0
+        c.BinderSpawner.gid = 0
+        # c.BinderSpawner.allow_privilege_escalation = True
+        # c.BinderSpawner.privileged = True
+        c.BinderSpawner.args = [
+          "--allow-root",
+        ]
+        # Overwrite the default timeout settings to be more tolerant of slow startups
+        c.BinderSpawner.start_timeout = 600
+        c.BinderSpawner.http_timeout = 600
+        c.BinderSpawner.consecutive_failure_limit = 10
+  singleuser:
+    cmd:
+      - python3
+      - "-c"
+      - |
+        import os
+        import sys
+        import shutil
+        import subprocess
+
+        # Prepend GKE-mounted NVIDIA driver paths so nvidia-smi and the
+        # CUDA/GL libraries are visible to the notebook process. Append to
+        # any existing values rather than overwriting them.
+        os.environ["PATH"] = "/usr/local/nvidia/bin:" + os.environ.get("PATH", "")
+        os.environ["LD_LIBRARY_PATH"] = (
+            "/usr/local/nvidia/lib64"
+            + (":" + os.environ["LD_LIBRARY_PATH"] if os.environ.get("LD_LIBRARY_PATH") else "")
+        )
+
+        # Register the NVIDIA EGL vendor ICD so libglvnd can find NVIDIA's
+        # EGL implementation (required for VirtualGL's EGL backend on GKE,
+        # whose driver image does not ship this file by default).
+        if os.geteuid() == 0:
+            egl_vendor_dir = "/usr/share/glvnd/egl_vendor.d"
+            egl_vendor_file = os.path.join(egl_vendor_dir, "10_nvidia.json")
+            if not os.path.exists(egl_vendor_file):
+                try:
+                    os.makedirs(egl_vendor_dir, exist_ok=True)
+                    with open(egl_vendor_file, "w") as f:
+                        f.write(
+                            '{\n'
+                            '  "file_format_version" : "1.0.0",\n'
+                            '  "ICD" : { "library_path" : "libEGL_nvidia.so.0" }\n'
+                            '}\n'
+                        )
+                    print(f"Wrote {egl_vendor_file}", file=sys.stderr)
+                except Exception as e:
+                    print(f"Failed to write EGL vendor ICD: {e}", file=sys.stderr)
+
+        try:
+            import jupyterlab
+            import jupyterlab.labapp
+            major = int(jupyterlab.__version__.split(".", 1)[0])
+        except Exception as e:
+            print(f"Failed to import jupyterlab: {e}", file=sys.stderr)
+            have_lab = False
+        else:
+            have_lab = major >= 3
+
+        if have_lab:
+            # technically, we could accept another jupyter-server-based frontend
+            print("Launching jupyter-lab", file=sys.stderr)
+            exe = "jupyter-lab"
+        else:
+            print("jupyter-lab not found, launching jupyter-notebook", file=sys.stderr)
+            exe = "jupyter-notebook"
+
+        # inject arguments
+        custom_args = sys.argv[:]
+        custom_args.append("--allow-root")
+
+        subprocess.run(['jupyter', 'labextension', 'disable', '@jupyterlab/apputils-extension:notification'], check=False)
+        # Install VirtualGL if not installed and user is root
+        if os.geteuid() == 0 and shutil.which("vglrun") is None:
+            print("User is root. Installing VirtualGL...")
+            vgl_url = "https://github.com/VirtualGL/virtualgl/releases/download/3.1.3/virtualgl_3.1.3_amd64.deb"
+            vgl_deb = "/tmp/virtualgl_3.1.3_amd64.deb"
+            try:
+                subprocess.run(["curl", "-fsSL", "-o", vgl_deb, vgl_url], check=True)
+                subprocess.run(["sudo", "apt-get", "install", "-y", "-q", vgl_deb], check=True)
+                print("VirtualGL installed successfully.")
+            except subprocess.CalledProcessError as e:
+                print(f"Command failed: {e}", file=sys.stderr)
+        cmd = [exe] + custom_args[1:]
+        # launch the notebook server
+        os.execvp(cmd[0], cmd)
+    cloudMetadata:
+      blockWithIptables: false
+    networkPolicy:
+      enabled: true
+      egressAllowRules:
+        privateIPs: false
+        nonPrivateIPs: true
+    extraEnv:
+      LP_NUM_THREADS: "4"
+      NVIDIA_DRIVER_CAPABILITIES: "all"
+      VGL_DISPLAY: "egl"
+      VGL_ISACTIVE: "1"
+      LD_PRELOAD: "libdlfaker.so:libvglfaker.so"
+      ACCEPT_EULA: "YES"
+      PRIVACY_CONSENT: "YES"
+      OMNI_KIT_ACCEPT_EULA: "YES"
+      OMNI_KIT_ALLOW_ROOT: "1"
+    memory:
+      guarantee: 1G
+      # limit: 20G
+    cpu:
+      guarantee: 1
+      # limit: 12
+    extraResource:
+      guarantees:
+        nvidia.com/gpu: "1"
+      limits:
+        nvidia.com/gpu: "1"

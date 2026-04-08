@@ -27,6 +27,8 @@ git clone https://github.com/IntEL4CoRo/binder.intel4coro.de-deploy.git
 cd binder.intel4coro.de-deploy
 ```
 
+### Step 3: Configure Image Registry
+
 The repository already includes a `secret.yaml`. Open it and fill in your Docker Hub credentials:
 
 ```yaml
@@ -40,18 +42,17 @@ registry:
 > **Other registries**: To use a registry other than Docker Hub (e.g., GitHub Container Registry, Google Artifact Registry), refer to the official guide:
 > [Set up the container registry](https://binderhub.readthedocs.io/en/latest/zero-to-binderhub/setup-registry.html#set-up-the-container-registry)
 
-### Step 3: Review `binder.yaml` Configuration
+### Step 4: Review `binder.yaml` Configuration
 
 Before deploying, review `binder.yaml` and update these values for your environment:
 
 | Field | Description |
 |-------|-------------|
-| `config.BinderHub.hub_url` | Public URL of the JupyterHub (e.g., `https://jupyter.intel4coro.de`) |
-| `config.BinderHub.build_node_selector` | Hostname of the node that should run builds |
 | `jupyterhub.singleuser.memory` | Memory guarantee/limit for user pods |
 | `jupyterhub.singleuser.cpu` | CPU guarantee/limit for user pods |
 | `jupyterhub.singleuser.extraResource` | GPU resource requests |
-| `config.BinderHub.image_prefix` | Docker Hub image prefix (e.g., `intel4coro/`) |
+| `config.BinderHub.hub_url` | Public URL of the JupyterHub (e.g., `https://jupyter.intel4coro.de`) |
+
 
 #### Shared Storage (Self-Hosted Only)
 
@@ -68,9 +69,23 @@ These use `hostPath` volumes pointing to directories on the node (e.g. `/srv/bin
 
 > **Google Cloud**: `hostPath` volumes are not suitable for GKE. To achieve equivalent shared storage, replace them with [Google Filestore](https://cloud.google.com/filestore) (NFS-backed `PersistentVolume`) or [GCS FUSE](https://cloud.google.com/storage/docs/gcsfuse-mount) mounts, and update the volume definitions accordingly.
 
-### Step 4: Deploy BinderHub
+### Step 5: Deploy BinderHub
 
 The version pinned below (`1.0.0-0.dev.git.3506.hba24eb2a`) has been tested and confirmed stable for this setup. Newer versions are available but have not been verified.
+
+**Google Cloud (GKE)** — use `binder-gke.yaml`. Compared to `binder.yaml`, this file adds extra initialization steps in the user pod to install and configure **Vulkan** and **OpenGL** drivers (ICD loader, libGL, libEGL) so that GPU-accelerated rendering (Isaac Sim, VirtualGL, etc.) works on GKE's Ubuntu GPU nodes, which do not ship these libraries by default:
+
+```bash
+helm upgrade --cleanup-on-fail \
+  --install binder \
+  jupyterhub/binderhub --version=1.0.0-0.dev.git.3506.hba24eb2a \
+  --namespace=binder \
+  --create-namespace \
+  -f ./secret.yaml \
+  -f ./binder-gke.yaml
+```
+
+**Self-hosted (MicroK8s)** — use `binder.yaml`:
 
 ```bash
 helm upgrade --cleanup-on-fail \
@@ -84,7 +99,7 @@ helm upgrade --cleanup-on-fail \
 
 To try a newer version, check https://hub.jupyter.org/helm-chart/#development-releases-binderhub and replace the `--version` value, then run `helm repo update` first.
 
-### Step 5: Verify Deployment
+### Step 6: Verify Deployment
 
 Check that all pods are running:
 
@@ -124,7 +139,7 @@ The two `LoadBalancer` services — `binder` and `proxy-public` — are the entr
 - **Google Cloud (GKE)**: GKE automatically provisions cloud load balancers with **public IPs**. The `EXTERNAL-IP` values shown above will be publicly routable — you can access BinderHub directly at `http://<binder-external-ip>` right away, without any additional networking setup.
 - **Self-hosted (MicroK8s)**: MetalLB assigns **local network IPs** (e.g., `192.168.1.x`). These are only reachable within the local network — a reverse proxy or tunnel is needed to expose them to the internet (see Step 6).
 
-To make the full system work, update `config.BinderHub.hub_url` in `binder.yaml` to point to the `proxy-public` external IP:
+Update `config.BinderHub.hub_url` in `binder.yaml` to point to the `proxy-public` external IP:
 
 ```yaml
 config:
@@ -139,35 +154,101 @@ helm upgrade binder --cleanup-on-fail \
   jupyterhub/binderhub --version=1.0.0-0.dev.git.3506.hba24eb2a \
   --namespace=binder \
   -f ./secret.yaml \
-  -f ./binder.yaml
+  -f ./binder-gke.yaml ## or binder.yaml
 ```
 
 After this, the service is fully functional — open `http://<binder-external-ip>` to use BinderHub, which will redirect users to JupyterHub at the `proxy-public` IP for their sessions.
 
-### Step 6: Configure Domain Names and HTTPS
+### Step 7: Configure Domain Names and HTTPS
+
+This step is not required for the service to function — BinderHub is already reachable via the LoadBalancer IPs from Step 6. The purpose of this step is to make the service accessible via human-friendly domain names (and HTTPS) instead of raw IP addresses.
 
 > **Two domain names required**: BinderHub consists of two publicly accessible services — the **BinderHub frontend** (handles repo building and launching) and the **JupyterHub proxy** (hosts the actual user sessions). Each needs its own domain name, e.g.:
 > - `binder.your-domain.org` → BinderHub (`binder` service)
 > - `jupyter.your-domain.org` → JupyterHub (`proxy-public` service)
+>
+> You can purchase a domain from any registrar (Namecheap, GoDaddy, Cloudflare Registrar, Google Domains, etc.), then create two subdomains (e.g. `binder` and `jupyter`).
 
 
-#### Option A: Google Cloud (GKE)
+#### Google Cloud (GKE)
 
-GKE automatically provisions a cloud load balancer when a `LoadBalancer` service is created. The `binder` and `proxy-public` services will receive public IPs directly — no additional setup is needed.
+Reference: [Secure with HTTPS](https://binderhub.readthedocs.io/en/latest/https.html).
 
-Point your DNS records to the external IPs shown in `kubectl get svc -n binder`, then configure HTTPS using [Google-managed certificates](https://cloud.google.com/kubernetes-engine/docs/how-to/managed-certs) or [cert-manager with Let's Encrypt](https://binderhub.readthedocs.io/en/latest/https.html#adjust-binderhub-config-to-serve-via-https).
+1. Get a static IP(v4) address that you will assign to your ingress proxy later. For example:
 
-Update `config.BinderHub.hub_url` in `binder.yaml` with your JupyterHub domain, then apply the changes:
+    ```
+    gcloud compute addresses create vrb-gpu --region europe-central2
+    ```
 
-```bash
-helm upgrade binder --cleanup-on-fail \
-  jupyterhub/binderhub --version=1.0.0-0.dev.git.3506.hba24eb2a \
-  --namespace=binder \
-  -f ./secret.yaml \
-  -f ./binder.yaml
-```
+    retrieve the assigned IP using:
 
-#### Option B: Self-Hosted (MicroK8s)
+    ```
+    gcloud compute addresses list
+    ```
+
+    output:
+
+    ```
+    NAME: vrb-gpu
+    ADDRESS/RANGE: 34.116.186.50
+    TYPE: EXTERNAL
+    PURPOSE: 
+    NETWORK: 
+    REGION: europe-central2
+    SUBNET: 
+    STATUS: RESERVED
+    ```
+
+1. Set A records to your above retrieved external IP, one for Binder and one for JupyterHub. Example of creating A records on Godaddy. Wait some minutes for the DNS A records to propagate.
+
+    ![](./img/dns.png)
+
+1. To automatically generate TLS certificates and sign them using Let’s Encrypt, we utilise cert-manager.
+
+    Install the latest version of [cert-manager](https://github.com/cert-manager/cert-manager):
+
+    ```
+    kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.20.1/cert-manager.yaml
+    ```
+
+
+1. We then need to create an issuer that will contact Let’s Encrypt for signing our certificates. Modify the file `binderhub-issuer.yaml` to replace the placeholder email with yours and instantiate it:
+
+    ```
+    kubectl apply -f binderhub-issuer.yaml
+    ```
+
+1. Ingress proxy using nginx
+
+    We will use the nginx ingress controller to proxy the TLS connection to our BinderHub setup. Replace the placeholder `<STATIC-IP>` in file `nginx-ingress.yaml` to the static IP you get. Then run:
+
+    ```
+    helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+    helm repo update                                          
+    helm install binderhub-proxy ingress-nginx/ingress-nginx \
+      --namespace binder \
+      -f nginx-ingress.yaml
+    ```
+
+    Then wait until it is ready and showing the correct IP when looking at the output of:
+    ```
+    kubectl get svc -n binder
+    ```
+
+1. Uncomment all HTTPS configs blocks in `binder.yaml` and replace all the `cloud.intel4coro.de` with your domain, `cloud-intel4coro-de` accordingly, then apply the changes:
+
+    ```bash
+    helm upgrade binder --cleanup-on-fail \
+      jupyterhub/binderhub --version=1.0.0-0.dev.git.3506.hba24eb2a \
+      --namespace=binder \
+      -f ./secret.yaml \
+      -f ./binder-gke.yaml
+    ```
+
+    Once the command has been run, it may take up to 10 minutes until the certificates are issued.
+
+
+#### Self-Hosted (MicroK8s)
 
 The MetalLB load balancer assigns local network IPs to the `binder` and `proxy-public` services. These IPs are only reachable within the local network. Use [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) to expose them publicly without opening firewall ports or requiring a public IP.
 
@@ -191,7 +272,7 @@ helm upgrade binder --cleanup-on-fail \
   -f ./binder.yaml
 ```
 
-### Step 7: Verify the Deployment
+### Step 8: Test the Complete Deployment
 
 The BinderHub system is now fully deployed. Open your BinderHub domain in a browser:
 
@@ -207,6 +288,12 @@ https://binder.your-domain.org/v2/gh/IntEL4CoRo/binder-template.git/main
 
 This will trigger a full build-and-launch cycle — building the Docker image, pushing it to Docker Hub, and spawning a user session. If the JupyterLab interface loads successfully, the deployment is complete.
 
+> **Google Cloud (GKE)**: If the node pool is configured with autoscaling and a minimum node count of `0`, the first lab launch may take several minutes while GKE provisions a new node to allocate compute resources. Subsequent launches will be faster as long as the node remains active.
+>
+> **Tip**: Before sessions with heavy expected usage (e.g., classroom, workshop, demo), warm up the node pool in advance by temporarily raising the minimum node count, so nodes are already provisioned when users start launching labs.
+
 ---
 
-**Next**: [Chapter 3 — GPU Time-Slicing](./03-gpu-time-slicing.md) — enable multiple users to share a single physical GPU.
+**Next**:
+- **Google Cloud (GKE)**: Deployment is complete — GPU time-slicing on GKE is configured at node-pool creation (see Chapter 1) and does not require the in-cluster setup in Chapter 3.
+- **Self-hosted (MicroK8s)**: Continue to [Chapter 3 — GPU Time-Slicing](./03-gpu-time-slicing.md) to enable multiple users to share a single physical GPU.
