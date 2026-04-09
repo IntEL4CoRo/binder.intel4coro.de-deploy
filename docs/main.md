@@ -64,6 +64,14 @@ block-beta
 | [5. Shutdown and Uninstall](./05-shutdown-uninstall.md) | Tear down services and clean up resources |
 
 
+## Demo: GPU-Accelerated Simulations on GKE
+
+The following recording tests GPU-accelerated simulatior running on GKE with an `n1-standard-8` instance with `NVIDIA Tesla T4` GPU.
+
+<video controls autoPlay loop width="100%">
+  <source src="./img/sim-test.mp4" type="video/mp4" />
+</video>
+
 ## References:
 
 - https://binderhub.readthedocs.io/en/latest/zero-to-binderhub/
