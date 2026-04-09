@@ -6,7 +6,85 @@ sidebar_position: 4
 
 Common commands for monitoring and troubleshooting the BinderHub deployment.
 
-## Kubernetes Dashboard
+## Google Cloud Shell Editor (GKE)
+
+For GKE deployments, [Google Cloud Shell Editor](https://shell.cloud.google.com/) provides a browser-based VS Code environment with `kubectl`, `helm`, and `gcloud` pre-installed and pre-authenticated to your project. You can use it to run all the commands without any local setup — just open it from the Google Cloud Console (click the **Activate Cloud Shell** button in the top-right corner). The editor also includes a built-in terminal, file editor, and git support.
+
+The left sidebar includes a **Cloud Code** panel with a GUI tool for Kubernetes cluster management. Expand the **Kubernetes** section to browse your GKE clusters, namespaces, workloads (Deployments, Pods, etc.), and services in a tree view. You can inspect pod status, view logs, open a shell into a running container, and manage resources — all without typing `kubectl` commands. This is especially useful for quickly checking pod health, reading logs during troubleshooting, and monitoring the `binder` namespace.
+
+![](./img/gc-vscode.png)
+
+## Slow Pod Startup Due to GKE Autoscaling (GKE)
+
+When a user launches a lab on GKE, the pod may take **5–15 minutes** to become ready — far longer than on a self-hosted setup where the node is always running. This is usually caused by the GKE cluster autoscaler provisioning a new node from scratch.
+
+### Why it's slow
+
+The delay is the sum of several sequential steps, each of which takes time:
+
+| Step | Typical time | What's happening |
+|------|-------------|-----------------|
+| Node provisioning | 1–3 min | GKE creates a new VM and boots it |
+| GPU driver installation | 2–5 min | NVIDIA drivers are installed on first boot (GKE auto-installs them via a DaemonSet) |
+| Image pull | 2–10 min | The user pod image (e.g., Isaac Sim, ~15 GB) is pulled from Docker Hub to the new node |
+| Pod startup | 10–30 s | Container starts, VirtualGL installs, JupyterLab launches |
+
+On a **warm node** (already running, drivers installed, image cached), only the last step applies — launch is near-instant. The problem only occurs when the autoscaler scales from zero or adds a new node.
+
+### Solutions
+
+**1. Keep a minimum node count of 1** (simplest, costs money when idle)
+
+Set the minimum node count to 1 so there is always a warm node ready:
+
+```bash
+gcloud container clusters update <cluster> \
+  --node-pool=<gpu-pool> --location=<zone> \
+  --enable-autoscaling --min-nodes=1 --max-nodes=<n>
+```
+
+**2. Pre-warm before scheduled sessions** (best for workshops/classes)
+
+Before a class or demo, temporarily scale up the node pool so nodes are already provisioned when users arrive:
+
+```bash
+gcloud container clusters resize <cluster> \
+  --node-pool=<gpu-pool> --location=<zone> --num-nodes=<n>
+```
+
+Scale back down afterwards to save costs. This can also be automated with a cron job or Cloud Scheduler.
+
+**3. Pre-pull large images** (reduces image pull time on new nodes)
+
+Use a DaemonSet to pre-pull frequently used images onto every node as soon as it joins the cluster:
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: image-prepuller
+  namespace: binder
+spec:
+  selector:
+    matchLabels:
+      app: image-prepuller
+  template:
+    metadata:
+      labels:
+        app: image-prepuller
+    spec:
+      initContainers:
+        - name: pull-image
+          image: <your-most-used-image>
+          command: ["sh", "-c", "exit 0"]
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.9
+```
+
+This doesn't prevent node provisioning delay, but eliminates the image pull wait (~2–10 min) once the node is up.
+
+## Kubernetes Dashboard (self-hosted)
 
 The Kubernetes dashboard provides a web UI to inspect pods, logs, and cluster resources.
 

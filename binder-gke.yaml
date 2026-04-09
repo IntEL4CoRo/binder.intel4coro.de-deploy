@@ -16,8 +16,8 @@ config:
     # ===== HTTPS Config ===== #
     hub_url: https://jupyter.cloud.intel4coro.de
     # ===== HTTPS END ===== #
-    KubernetesBuildExecutor:
-      build_image: quay.io/jupyterhub/repo2docker:2024.07.0-19.gbf618ef
+    # KubernetesBuildExecutor:
+    #   build_image: quay.io/jupyterhub/repo2docker:2024.07.0-19.gbf618ef
 
 
 # ===== HTTPS Config ===== #

@@ -42,16 +42,28 @@ registry:
 > **Other registries**: To use a registry other than Docker Hub (e.g., GitHub Container Registry, Google Artifact Registry), refer to the official guide:
 > [Set up the container registry](https://binderhub.readthedocs.io/en/latest/zero-to-binderhub/setup-registry.html#set-up-the-container-registry)
 
-### Step 4: Review `binder.yaml` Configuration
+### Step 4: Review Configuration
 
-Before deploying, review `binder.yaml` and update these values for your environment:
+The configuration file depends on your deployment target:
+
+- **Self-hosted (MicroK8s)**: `binder.yaml`
+- **Google Cloud (GKE)**: `binder-gke.yaml` — includes the same settings as `binder.yaml`, plus extra initialization steps in the user pod to install and configure **Vulkan** and **OpenGL** drivers (ICD loader, libGL, libEGL) so that GPU-accelerated rendering (Isaac Sim, VirtualGL, etc.) works on GKE's GPU nodes, which do not ship these libraries by default.
+
+Before deploying, review the configuration file and update these values for your environment:
 
 | Field | Description |
 |-------|-------------|
 | `jupyterhub.singleuser.memory` | Memory guarantee/limit for user pods |
 | `jupyterhub.singleuser.cpu` | CPU guarantee/limit for user pods |
 | `jupyterhub.singleuser.extraResource` | GPU resource requests |
+| `jupyterhub.cull.every` | How often (in seconds) the culler checks for idle pods, `300` (5 min) |
+| `jupyterhub.cull.timeout` | Shut down pods that have been idle for this many seconds, `1200` (20 min) |
+| `jupyterhub.cull.maxAge` | Shut down pods that have been running for this many seconds, regardless of activity, `86400` (24 h) |
 | `config.BinderHub.hub_url` | Public URL of the JupyterHub (e.g., `https://jupyter.intel4coro.de`) |
+
+Adjust `maxAge` based on your expected session length — for example, a classroom workshop might use `14400` (4 hours), while a long-running research session may need `86400` (24 hours). On GKE with autoscaling node pools, shorter `maxAge` helps nodes scale down sooner and reduces costs.
+
+> **How "idle" is determined**: The culler checks whether the user's JupyterLab or VS Code session has an active browser connection — **not** whether a program is running inside the pod. If the user closes the browser tab or loses network connectivity, the pod is considered idle even if a long-running task (e.g., model training, simulation) is still executing. Once the idle time exceeds `timeout`, the pod will be shut down and **all unsaved work and running processes are lost**. Users running long tasks must keep the page open in the browser for the entire duration.
 
 
 #### Shared Storage (Self-Hosted Only)
@@ -73,12 +85,12 @@ These use `hostPath` volumes pointing to directories on the node (e.g. `/srv/bin
 
 The version pinned below (`1.0.0-0.dev.git.3506.hba24eb2a`) has been tested and confirmed stable for this setup. Newer versions are available but have not been verified.
 
-**Google Cloud (GKE)** — use `binder-gke.yaml`. Compared to `binder.yaml`, this file adds extra initialization steps in the user pod to install and configure **Vulkan** and **OpenGL** drivers (ICD loader, libGL, libEGL) so that GPU-accelerated rendering (Isaac Sim, VirtualGL, etc.) works on GKE's Ubuntu GPU nodes, which do not ship these libraries by default:
+**Google Cloud (GKE)** — use `binder-gke.yaml`:
 
 ```bash
 helm upgrade --cleanup-on-fail \
   --install binder \
-  jupyterhub/binderhub --version=1.0.0-0.dev.git.3506.hba24eb2a \
+  jupyterhub/binderhub --version=1.0.0-0.dev.git.3941.h9056a226 \
   --namespace=binder \
   --create-namespace \
   -f ./secret.yaml \
@@ -295,5 +307,5 @@ This will trigger a full build-and-launch cycle — building the Docker image, p
 ---
 
 **Next**:
-- **Google Cloud (GKE)**: Deployment is complete — GPU time-slicing on GKE is configured at node-pool creation (see Chapter 1) and does not require the in-cluster setup in Chapter 3.
+- **Google Cloud (GKE)**: Deployment is complete — Jump to [Chapter 4 — Troubleshooting](./04-troubleshooting.md) for day-to-day operations and common issues.
 - **Self-hosted (MicroK8s)**: Continue to [Chapter 3 — GPU Time-Slicing](./03-gpu-time-slicing.md) to enable multiple users to share a single physical GPU.
