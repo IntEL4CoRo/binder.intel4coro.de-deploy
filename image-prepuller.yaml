@@ -1,0 +1,72 @@
+# DaemonSet that pre-pulls frequently used BinderHub images onto GPU user nodes.
+#
+# How it works:
+#   Each initContainer references a target image and immediately exits.
+#   This forces the kubelet to pull the image onto the node's local cache.
+#   The pause container keeps the DaemonSet pod alive so the images stay cached.
+#
+# How to find image names:
+#   BinderHub builds Docker images from Git repos using the naming convention:
+#
+#     <image_prefix><escaped-org>-2d<escaped-repo>-<hash>:<commit-sha>
+#
+#   Where special characters are escaped:  - → -2d   . → -2e   _ → -5f
+#   Browse existing images at: https://hub.docker.com/u/intel4coro
+#
+# To add a new image:
+#   1. Find the image name on Docker Hub (or from a previous BinderHub build log)
+#   2. Add a new initContainer entry below with a unique name
+#   3. Re-apply: kubectl apply -f image-prepuller.yaml -n binder
+#
+# Usage:
+#   kubectl apply -f image-prepuller.yaml -n binder
+#   kubectl delete -f image-prepuller.yaml -n binder
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: image-prepuller
+  namespace: binder
+spec:
+  selector:
+    matchLabels:
+      app: image-prepuller
+  template:
+    metadata:
+      labels:
+        app: image-prepuller
+    spec:
+      # Only schedule on GPU user nodes (must match the node pool labels/taints
+      # from Chapter 1 Step 6)
+      nodeSelector:
+        hub.jupyter.org/node-purpose: user
+      tolerations:
+        - key: hub.jupyter.org_dedicated
+          operator: Equal
+          value: user
+          effect: NoSchedule
+
+      initContainers:
+        # === Image 1 ===
+        # Git repo: https://github.com/IntEL4CoRo/binder-template
+        - name: pull-binder-template
+          image: intel4coro/intel4coro-2dbinder-2dtemplate-9cebd1:64cc9523b319187ad947f737d0d0453968372efb
+          command: ["sh", "-c", "exit 0"]
+          resources:
+            limits:
+              cpu: "0"
+              memory: "0"
+
+        # === Image 2 ===
+        # Git repo: <org>/<repo> — replace with your image
+        # - name: pull-another-image
+        #   image: intel4coro/<escaped-org>-2d<escaped-repo>-<hash>:<commit-sha>
+        #   command: ["sh", "-c", "exit 0"]
+        #   resources:
+        #     limits:
+        #       cpu: "0"
+        #       memory: "0"
+
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.9

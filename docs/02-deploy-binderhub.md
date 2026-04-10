@@ -180,6 +180,8 @@ This step is not required for the service to function — BinderHub is already r
 > - `jupyter.your-domain.org` → JupyterHub (`proxy-public` service)
 >
 > You can purchase a domain from any registrar (Namecheap, GoDaddy, Cloudflare Registrar, Google Domains, etc.), then create two subdomains (e.g. `binder` and `jupyter`).
+>
+> **No domain?** You can use [sslip.io](https://sslip.io) — a free wildcard DNS service that maps `<anything>.<IP>.sslip.io` to the corresponding IP address. For example, if your static IP is `34.116.186.50`, use `binder.34.116.186.50.sslip.io` and `jupyter.34.116.186.50.sslip.io` as your two domain names. No domain purchase or A record configuration is needed — just substitute these sslip.io hostnames wherever the steps below reference `binder.your-domain.org` and `jupyter.your-domain.org`.
 
 
 #### Google Cloud (GKE)
@@ -247,11 +249,11 @@ Reference: [Secure with HTTPS](https://binderhub.readthedocs.io/en/latest/https.
     kubectl get svc -n binder
     ```
 
-1. Uncomment all HTTPS configs blocks in `binder.yaml` and replace all the `cloud.intel4coro.de` with your domain, `cloud-intel4coro-de` accordingly, then apply the changes:
+1. Uncomment all HTTPS configs blocks in `binder-gke.yaml` and replace all the `cloud.intel4coro.de` with your domain, `cloud-intel4coro-de` accordingly, then apply the changes:
 
     ```bash
     helm upgrade binder --cleanup-on-fail \
-      jupyterhub/binderhub --version=1.0.0-0.dev.git.3506.hba24eb2a \
+      jupyterhub/binderhub --version=1.0.0-0.dev.git.3941.h9056a226 \
       --namespace=binder \
       -f ./secret.yaml \
       -f ./binder-gke.yaml

@@ -56,33 +56,56 @@ Scale back down afterwards to save costs. This can also be automated with a cron
 
 **3. Pre-pull large images** (reduces image pull time on new nodes)
 
-Use a DaemonSet to pre-pull frequently used images onto every node as soon as it joins the cluster:
+Use a DaemonSet to pre-pull frequently used images onto every GPU user node as soon as it joins the cluster. Each `initContainer` references a target image and immediately exits — this forces the kubelet to pull the image into the node's local cache. This doesn't prevent node provisioning delay, but eliminates the image pull wait (~2–10 min) once the node is up.
 
-```yaml
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: image-prepuller
-  namespace: binder
-spec:
-  selector:
-    matchLabels:
-      app: image-prepuller
-  template:
-    metadata:
-      labels:
-        app: image-prepuller
-    spec:
-      initContainers:
-        - name: pull-image
-          image: <your-most-used-image>
-          command: ["sh", "-c", "exit 0"]
-      containers:
-        - name: pause
-          image: registry.k8s.io/pause:3.9
+#### Git Repo → Docker Image Naming Rule
+
+BinderHub automatically generates Docker image names from Git repository URLs. Understanding this mapping is needed to find the correct image name for pre-pulling.
+
+The image name format is:
+
+```
+<image_prefix><escaped-org>-2d<escaped-repo>-<hash>:<commit-sha>
 ```
 
-This doesn't prevent node provisioning delay, but eliminates the image pull wait (~2–10 min) once the node is up.
+Where `image_prefix` is set in `binder-gke.yaml` / `binder.yaml` (currently `intel4coro/`), and special characters in the org/repo name are escaped:
+
+| Character | Escape |
+|-----------|--------|
+| `-` (hyphen) | `-2d` |
+| `.` (dot) | `-2e` |
+| `_` (underscore) | `-5f` |
+
+The `<hash>` is a short (6-char) checksum appended by BinderHub, and the tag is the full git commit SHA.
+
+**Example:**
+
+| | |
+|---|---|
+| **Git repo** | `https://github.com/IntEL4CoRo/binder-template` @ commit `64cc9523...` |
+| **Org** | `IntEL4CoRo` → `intel4coro` (lowercased) |
+| **Repo** | `binder-template` → `binder-2dtemplate` (`-` escaped to `-2d`) |
+| **Slug** | `intel4coro-2dbinder-2dtemplate-9cebd1` |
+| **Full image** | `intel4coro/intel4coro-2dbinder-2dtemplate-9cebd1:64cc9523b319187ad947f737d0d0453968372efb` |
+
+You can also browse all existing images directly at: https://hub.docker.com/u/intel4coro
+
+#### Apply the Pre-puller
+
+The repo includes a ready-to-use DaemonSet config that supports multiple images. Edit `image-prepuller.yaml` to add the images you want to pre-pull (each as a separate `initContainer`), then apply:
+
+```bash
+# Apply
+kubectl apply -f ./image-prepuller.yaml -n binder
+
+# Verify — one pod per GPU user node
+kubectl get pods -n binder -l app=image-prepuller
+
+# Remove when no longer needed
+kubectl delete -f ./image-prepuller.yaml -n binder
+```
+
+See [`image-prepuller.yaml`](../image-prepuller.yaml) for the full config and instructions on adding more images.
 
 ## Kubernetes Dashboard (self-hosted)
 
