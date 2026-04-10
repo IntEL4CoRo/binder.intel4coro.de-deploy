@@ -226,7 +226,7 @@ Reference: [Secure with HTTPS](https://binderhub.readthedocs.io/en/latest/https.
     ```
 
 
-1. We then need to create an issuer that will contact Let’s Encrypt for signing our certificates. Modify the file `binderhub-issuer.yaml` to replace the placeholder email with yours and instantiate it:
+1. We then need to create an issuer that will contact Let’s Encrypt for signing our certificates:
 
     ```
     kubectl apply -f binderhub-issuer.yaml

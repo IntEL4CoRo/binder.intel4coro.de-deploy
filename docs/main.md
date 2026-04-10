@@ -64,6 +64,88 @@ block-beta
 | [5. Shutdown and Uninstall](./05-shutdown-uninstall.md) | Tear down services and clean up resources |
 
 
+## Quick Deploy on GKE with AI Coding Agents
+
+Instead of running each chapter manually, you can use an **AI coding agent** to read the docs and execute the entire deployment for you. The agent will follow the instructions in this guide, run the `gcloud`, `helm`, and `kubectl` commands, and handle the configuration — you just describe what you want and review its plan.
+
+### Step 1: Open a Terminal on Google Cloud
+
+Go to [console.cloud.google.com](https://console.cloud.google.com), click the **Cloud Shell** icon (terminal icon in the top-right corner) to open a terminal. Alternatively, click **Open Editor** to use the VS Code-based Cloud Shell Editor.
+
+### Step 2: Set Your Project ID
+
+```bash
+gcloud config set project <YOUR_PROJECT_ID>
+```
+
+Replace `<YOUR_PROJECT_ID>` with your Google Cloud project ID. You can find it in the URL of [console.cloud.google.com](https://console.cloud.google.com/) when you select a project.
+
+### Step 3: Clone Configuration Repository
+
+```bash
+git clone https://github.com/IntEL4CoRo/binder.intel4coro.de-deploy.git
+cd binder.intel4coro.de-deploy
+```
+
+**Then fill in the DockerHub credentials in file `secret.yaml` — contact us to get the token of account `intel4coro`.**
+
+### Step 4: Launch an AI Coding Agent
+
+- Built-in Gemini:
+
+    ```bash
+    gemini
+    ```
+
+- Claude Code:
+
+    ```bash
+    # Install:
+    curl -fsSL https://claude.ai/install.sh | bash
+    # login
+    claude
+    ```
+
+### Step 5: Describe Your Requirements
+
+`Shift+Tab` to switch to plan mode
+
+Tell the agent what you need. For example:
+
+```
+Follow the instructions under directory "docs" to deploy the full BinderHub system on GKE.
+
+Requirements:
+- Zone: europe-central2-b
+- GPU node pool: 4 vCPUs, 15 GB memory, 1× T4 GPU shared by 4 user pods
+- HTTPS: use sslip.io
+- Don't use spot node.
+```
+
+> **Warning**: AI Agents may not produce a fully correct plan — carefully review each step before execution. Cross-check against the chapters in this guide to catch any missing or incorrect commands.
+
+Once the plan looks good, `Shift+Tab` to switch to act mode and ask to execute it.
+
+### Step 6: Execute the Plan
+
+The agent will ask for your permission before running each command. Review the command it is about to execute, then confirm to proceed. If something looks wrong, reject it and provide corrections. The entire process takes roughly **20 minutes** if everything goes smoothly.
+
+### Step 7: Verify the Deployment
+
+Once deployment is complete, open the BinderHub URL(replace the IP address):
+
+```
+https://binder.34.6.205.29.sslip.io
+```
+
+Launch a test repo to verify everything works:
+
+```
+https://binder.34.6.205.29.sslip.io/v2/gh/IntEL4CoRo/binder-template.git/42f09b447e7bf6da65d2eafb0bea94019c264d0a
+```
+
+The first launch takes around **10 minutes** — Google Cloud needs to provision a GPU node (autoscaling from 0) and pull the container image. If the page times out, simply refresh the page and it will try again.
+
 ## Demo: GPU-Accelerated Simulations on GKE
 
 The following recording tests GPU-accelerated simulatior running on GKE with an `n1-standard-8` instance with `NVIDIA Tesla T4` GPU.

@@ -84,8 +84,8 @@ jupyterhub:
           "--allow-root",
         ]
         # Overwrite the default timeout settings to be more tolerant of slow startups
-        c.BinderSpawner.start_timeout = 600
-        c.BinderSpawner.http_timeout = 600
+        c.BinderSpawner.start_timeout = 900
+        c.BinderSpawner.http_timeout = 900
         c.BinderSpawner.consecutive_failure_limit = 10
   singleuser:
     cmd:

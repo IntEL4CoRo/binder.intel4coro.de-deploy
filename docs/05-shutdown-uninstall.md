@@ -48,11 +48,16 @@ gcloud container clusters delete vrb-gpu --zone europe-central2-b --quiet
 gcloud compute disks list
 
 ## Delete persistent disks
-gcloud compute disks delete <pvc-name> --zone <zone>
+gcloud compute disks delete <pvc-name> --region <zone>
 
 # Orphaned load balancers / forwarding rules
 gcloud compute forwarding-rules list --global
-gcloud compute forwarding-rules list --zone <zone>
+
+# Reserved static IP addresses
+gcloud compute addresses list
+
+## Delete Reserved static IP
+gcloud compute addresses delete <ip-name> --region <zone>
 ```
 
 > **Warning**: GKE cluster deletion is irreversible. Verify all important data is backed up before proceeding.
