@@ -48,7 +48,7 @@ spec:
 
       initContainers:
         # === Image 1 ===
-        # Git repo: https://github.com/IntEL4CoRo/binder-template
+        # Git repo: https://github.com/aicor-vrb/binder-template
         - name: pull-binder-template
           image: intel4coro/intel4coro-2dbinder-2dtemplate-9cebd1:64cc9523b319187ad947f737d0d0453968372efb
           command: ["sh", "-c", "exit 0"]

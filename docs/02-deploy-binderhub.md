@@ -297,7 +297,7 @@ https://binder.your-domain.org
 To verify the full system is working end-to-end, launch the VRB lab test environment:
 
 ```
-https://binder.your-domain.org/v2/gh/IntEL4CoRo/binder-template.git/main
+https://binder.your-domain.org/v2/gh/aicor-vrb/binder-template.git/lite
 ```
 
 This will trigger a full build-and-launch cycle — building the Docker image, pushing it to Docker Hub, and spawning a user session. If the JupyterLab interface loads successfully, the deployment is complete.

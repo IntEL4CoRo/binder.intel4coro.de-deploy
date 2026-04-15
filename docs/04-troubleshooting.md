@@ -82,7 +82,7 @@ The `<hash>` is a short (6-char) checksum appended by BinderHub, and the tag is 
 
 | | |
 |---|---|
-| **Git repo** | `https://github.com/IntEL4CoRo/binder-template` @ commit `64cc9523...` |
+| **Git repo** | `https://github.com/aicor-vrb/binder-template` @ commit `64cc9523...` |
 | **Org** | `IntEL4CoRo` → `intel4coro` (lowercased) |
 | **Repo** | `binder-template` → `binder-2dtemplate` (`-` escaped to `-2d`) |
 | **Slug** | `intel4coro-2dbinder-2dtemplate-9cebd1` |

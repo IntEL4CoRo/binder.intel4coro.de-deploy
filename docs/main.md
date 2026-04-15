@@ -141,7 +141,7 @@ https://binder.34.6.205.29.sslip.io
 Launch a test repo to verify everything works:
 
 ```
-https://binder.34.6.205.29.sslip.io/v2/gh/IntEL4CoRo/binder-template.git/42f09b447e7bf6da65d2eafb0bea94019c264d0a
+https://binder.34.6.205.29.sslip.io/v2/gh/aicor-vrb/binder-template.git/lite
 ```
 
 The first launch takes around **10 minutes** — Google Cloud needs to provision a GPU node (autoscaling from 0) and pull the container image. If the page times out, simply refresh the page and it will try again.
