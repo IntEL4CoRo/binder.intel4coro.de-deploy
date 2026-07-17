@@ -83,7 +83,7 @@ These use `hostPath` volumes pointing to directories on the node (e.g. `/srv/bin
 
 ### Step 5: Deploy BinderHub
 
-The version pinned below (`1.0.0-0.dev.git.3506.hba24eb2a`) has been tested and confirmed stable for this setup. Newer versions are available but have not been verified.
+The version pinned below (`1.0.0-0.dev.git.3941.h9056a226`) has been tested and confirmed stable for this setup. Newer versions are available but have not been verified.
 
 **Google Cloud (GKE)** — use `binder-gke.yaml`:
 
@@ -102,7 +102,7 @@ helm upgrade --cleanup-on-fail \
 ```bash
 helm upgrade --cleanup-on-fail \
   --install binder \
-  jupyterhub/binderhub --version=1.0.0-0.dev.git.3506.hba24eb2a \
+  jupyterhub/binderhub --version=1.0.0-0.dev.git.3941.h9056a226 \
   --namespace=binder \
   --create-namespace \
   -f ./secret.yaml \
@@ -163,7 +163,7 @@ Then re-run the deploy command to apply the change:
 
 ```bash
 helm upgrade binder --cleanup-on-fail \
-  jupyterhub/binderhub --version=1.0.0-0.dev.git.3506.hba24eb2a \
+  jupyterhub/binderhub --version=1.0.0-0.dev.git.3941.h9056a226 \
   --namespace=binder \
   -f ./secret.yaml \
   -f ./binder-gke.yaml ## or binder.yaml
@@ -280,7 +280,7 @@ Then apply the changes:
 
 ```bash
 helm upgrade binder --cleanup-on-fail \
-  jupyterhub/binderhub --version=1.0.0-0.dev.git.3506.hba24eb2a \
+  jupyterhub/binderhub --version=1.0.0-0.dev.git.3941.h9056a226 \
   --namespace=binder \
   -f ./secret.yaml \
   -f ./binder.yaml
