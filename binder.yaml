@@ -91,6 +91,17 @@ jupyterhub:
         c.Spawner.start_timeout = 120
         c.Spawner.http_timeout = 120
         c.Spawner.consecutive_failure_limit = 10
+      tornado_settings: |
+        c.JupyterHub.tornado_settings = {
+          'headers': {
+            'Content-Security-Policy': "frame-ancestors *"
+          }
+        }
+        c.Spawner.args.append("""--NotebookApp.tornado_settings={
+          'headers':{
+            'Content-Security-Policy': 'frame-ancestors *',
+          }
+        }""")
   singleuser:
     # Customize the startup command to install VirtualGL and setup GKE nvidida envrionment
     # cmd:
