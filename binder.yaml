@@ -97,6 +97,9 @@ jupyterhub:
             'Content-Security-Policy': "frame-ancestors *"
           }
         }
+        c.ServerApp.tornado_settings = {
+            "headers": {"Content-Security-Policy": "frame-ancestors *"}
+        }
         c.Spawner.args.append("""--NotebookApp.tornado_settings={
           'headers':{
             'Content-Security-Policy': 'frame-ancestors *',
