@@ -39,6 +39,8 @@ config:
     template_path: /etc/binderhub/custom/iai/templates
     extra_static_path: /etc/binderhub/custom/iai/static
     extra_static_url_prefix: /extra_static/
+    template_variables:
+        EXTRA_STATIC_URL_PREFIX: "/extra_static/"
     banner_message: |
       <div class="site-partner" style="display: flex; justify-content: flex-end; gap: 20px; align-items: center;">
           <a target="_blank" href="https://vrb.ease-crc.org/" style="max-width: 160px; height: auto; display: flex; align-items: center; justify-content: center;">
@@ -51,8 +53,6 @@ config:
             <img alt="logo-bremen.svg" src="https://vrb.ease-crc.org/media/logo-bremen.svg" style="max-width: 100%; max-height: 60px; object-fit: contain;">
           </a> 
       </div>
-    template_variables:
-        EXTRA_STATIC_URL_PREFIX: "/extra_static/"
     use_registry: true
     image_prefix: intel4coro/
     hub_url: https://jupyter.dev.intel4coro.de
@@ -83,9 +83,9 @@ jupyterhub:
         c.BinderSpawner.gid = 0
         # c.BinderSpawner.allow_privilege_escalation = True
         # c.BinderSpawner.privileged = True
-        # c.BinderSpawner.args = [
-        #   "--allow-root",
-        # ]
+        c.BinderSpawner.args = [
+          "--allow-root",
+        ]
       # Overwrite the default timeout settings to be more tolerant of slow startups
       01-timeout: |
         c.Spawner.start_timeout = 120
